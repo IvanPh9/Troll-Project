@@ -5,7 +5,7 @@ import { storeToRefs } from 'pinia'
 import { useDriversStore } from '@/stores/drivers'
 import { Driver } from '@/models/driver'
 import SvgIcon from '@/components/ui/SvgIcon.vue'
-import DriversStats from '@/components/DriversStats.vue'
+import DriversStats from './DriversStats.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -235,7 +235,7 @@ const statusDotClass = computed(() => {
 </script>
 
 <template>
-  <div class="flex-1 flex flex-col items-center pb-20 h-full w-full max-w-5xl mx-auto px-4 mt-18 relative">
+  <div class="flex-1 flex flex-col items-center pb-20 h-full w-full max-w-5xl mx-auto px-4 mt-2 relative">
 
     <!-- Прозорий шар для закриття випадаючих меню при кліку поза ними. Він має z-40 -->
     <div v-if="isStatusMenuOpen || isSortMenuOpen" @click="closeMenus" class="fixed inset-0 z-40"></div>

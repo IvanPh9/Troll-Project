@@ -5,13 +5,18 @@ import { motion, AnimatePresence } from 'motion-v'
 import SvgIcon from '@/components/ui/SvgIcon.vue'
 import { useDriversStore } from '@/stores/drivers'
 import { useVehiclesStore } from '@/stores/vehicles'
+import { useStopsStore } from '@/stores/stops'
 
 const driversStore = useDriversStore()
 const vehiclesStore = useVehiclesStore()
+const stopsStore = useStopsStore()
+
+const isStopsPage = computed(() => route.path === '/base/stops' || route.path === '/base/stops/')
 
 const isDeleteMode = computed(() => {
   if (isDriversPage.value) return driversStore.isDeleteMode
   if (isVehiclesPage.value) return vehiclesStore.isDeleteMode
+  if (isStopsPage.value) return stopsStore.isDeleteMode
   return false
 })
 const isAssignRouteMode = computed(() => {
@@ -19,7 +24,6 @@ const isAssignRouteMode = computed(() => {
   if (isVehiclesPage.value) return vehiclesStore.isAssignRouteMode
   return false
 })
-const isAddDriverModalOpen = computed(() => driversStore.isAddDriverModalOpen)
 
 // Розділив activeClass на activeBgClass та activeTextClass для правильного успадкування кольору іконками
 const navLinks = [
@@ -62,9 +66,12 @@ const navLinks = [
 
 const route = useRoute()
 const isBaseRoute = computed(() => route.path === '/base' || route.path === '/base/')
+const isMapRoute = computed(() => route.path.startsWith('/base/stops'))
 const isDriversPage = computed(() => route.path.startsWith('/base/drivers'))
 const isVehiclesPage = computed(() => route.path.startsWith('/base/vehicle'))
-const showActions = computed(() => isDriversPage.value || isVehiclesPage.value)
+const isConstructorRoute = computed(() => route.path.startsWith('/base/route/create'))
+
+const showActions = computed(() => isDriversPage.value || isVehiclesPage.value || isStopsPage.value)
 
 const actionButtons = [
   {
@@ -90,6 +97,13 @@ const actionButtons = [
   }
 ]
 
+const displayedActionButtons = computed(() => {
+  if (isStopsPage.value) {
+    return actionButtons.filter(btn => btn.id === 'add' || btn.id === 'delete')
+  }
+  return actionButtons
+})
+
 const handleAction = (btn: any) => {
   if (isDriversPage.value) {
     if (btn.id === 'add') {
@@ -110,6 +124,12 @@ const handleAction = (btn: any) => {
     } else if (btn.id === 'assign-route') {
       vehiclesStore.isAssignRouteMode = !vehiclesStore.isAssignRouteMode
       vehiclesStore.isDeleteMode = false
+    }
+  } else if (isStopsPage.value) {
+    if (btn.id === 'add') {
+      stopsStore.isAddStopModalOpen = true
+    } else if (btn.id === 'delete') {
+      stopsStore.isDeleteMode = !stopsStore.isDeleteMode
     }
   }
 }
@@ -132,7 +152,7 @@ const textSpring = {
 <template>
   <div class="page-container min-h-screen flex flex-col bg-gray-50/50">
 
-    <nav class="flex flex-wrap justify-center items-center gap-3 p-4 fixed inset-x-0 z-100">
+    <nav v-if="!isConstructorRoute" class="flex flex-wrap justify-center items-center gap-3 p-4 fixed inset-x-0 z-100">
 
       <router-link
           to="/"
@@ -221,9 +241,13 @@ const textSpring = {
 
       <!-- Кнопки швидких дій для водіїв/ТЗ (плавний CSS слайд у центрі) -->
       <div class="actions-wrapper flex-shrink-0" :class="{ 'active': showActions }">
-        <div class="flex items-center gap-2 rounded-full backdrop-blur-xl bg-white/55 border border-gray-200 shadow-[0_8px_8px_rgba(31,38,135,0.04)] p-1.5 z-50">
+        <transition-group 
+          name="btn-list" 
+          tag="div" 
+          class="flex items-center gap-2 rounded-full backdrop-blur-xl bg-white/55 border border-gray-200 shadow-[0_8px_8px_rgba(31,38,135,0.04)] p-1.5 z-50"
+        >
           <button
-              v-for="btn in actionButtons"
+              v-for="btn in displayedActionButtons"
               :key="btn.id"
               @click.stop="handleAction(btn)"
               class="relative flex items-center justify-center w-8 h-8 rounded-full transition-all duration-400 group outline-none overflow-hidden"
@@ -247,12 +271,14 @@ const textSpring = {
               <SvgIcon :name="btn.icon" class="w-4 h-4 flex-shrink-0" />
             </div>
           </button>
-        </div>
+        </transition-group>
       </div>
 
     </nav>
 
-    <div :class="isBaseRoute ? 'flex-1 flex flex-col justify-center items-center pb-20 mt-20' : 'p-6 flex justify-center'">
+    <div :class="isBaseRoute ? 'flex-1 flex flex-col justify-center items-center pb-20 mt-20' : 
+                 isMapRoute ? 'relative flex-1 overflow-hidden' : 
+                 'flex-1 p-6 flex justify-center mt-[72px]'">
 
       <template v-if="isBaseRoute">
         <h2 class="text-center text-3xl font-semibold font-sans mb-6">Інформаційна база</h2>
@@ -261,10 +287,10 @@ const textSpring = {
         </p>
       </template>
 
-      <div class="inner-content w-full max-w-7xl">
-        <router-view v-slot="{ Component }">
-          <transition name="fade" mode="out-in">
-            <component :is="Component" />
+      <div :class="isBaseRoute || !isMapRoute ? 'inner-content relative w-full max-w-7xl' : 'absolute inset-0'">
+        <router-view v-slot="{ Component, route }">
+          <transition name="page-fade" mode="out-in">
+            <component :is="Component" :key="route.path" />
           </transition>
         </router-view>
       </div>
@@ -274,14 +300,19 @@ const textSpring = {
 </template>
 
 <style scoped>
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.3s ease;
+.page-fade-enter-active,
+.page-fade-leave-active {
+  transition: opacity 0.25s ease, transform 0.25s ease;
 }
 
-.fade-enter-from,
-.fade-leave-to {
+.page-fade-enter-from {
   opacity: 0;
+  transform: translateY(10px);
+}
+
+.page-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
 }
 
 .actions-wrapper {
@@ -303,5 +334,23 @@ const textSpring = {
   opacity: 1;
   transform: scale(1);
   pointer-events: auto !important;
+}
+
+/* Animations for TransitionGroup buttons */
+.btn-list-move,
+.btn-list-enter-active,
+.btn-list-leave-active {
+  transition: all 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+}
+.btn-list-enter-from,
+.btn-list-leave-to {
+  opacity: 0;
+  transform: scale(0.5) translateX(-20px);
+  width: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+.btn-list-leave-active {
+  position: absolute;
 }
 </style>

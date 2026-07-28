@@ -3,9 +3,9 @@ import { onMounted, computed, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useVehiclesStore } from '@/stores/vehicles'
-import { Vehicle, ActiveVehicle } from '@/models/vehicle'
+import { Vehicle, ActiveVehicle, Bus, Trolleybus, ActiveBus, ActiveTrolleybus } from '@/models/vehicle'
 import SvgIcon from '@/components/ui/SvgIcon.vue'
-import VehiclesStats from '@/components/VehiclesStats.vue'
+import VehiclesStats from './VehiclesStats.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -88,6 +88,10 @@ const displayedVehicles = computed(() => {
     result = result.filter(v => v.type === 'bus')
   } else if (currentType.value === 'trolleybus') {
     result = result.filter(v => v.type === 'trolleybus')
+  } else if (currentType.value === 'trolleybus_akb') {
+    result = result.filter(v => v.type === 'trolleybus' && v.hasBatteryAutonomous)
+  } else if (currentType.value === 'trolleybus_no_akb') {
+    result = result.filter(v => v.type === 'trolleybus' && !v.hasBatteryAutonomous)
   }
 
   // Сортування
@@ -117,12 +121,16 @@ const statusDotClass = computed(() => {
 const typeLabel = computed(() => {
   if (currentType.value === 'bus') return 'Автобуси'
   if (currentType.value === 'trolleybus') return 'Тролейбуси'
+  if (currentType.value === 'trolleybus_akb') return 'Тролейбуси з АКБ'
+  if (currentType.value === 'trolleybus_no_akb') return 'Тролейбуси без АКБ'
   return 'Всі типи'
 })
 
 const typeDotClass = computed(() => {
   if (currentType.value === 'bus') return 'bg-blue-500 shadow-[0_0_4px_#3b82f6]'
   if (currentType.value === 'trolleybus') return 'bg-amber-500 shadow-[0_0_4px_#f59e0b]'
+  if (currentType.value === 'trolleybus_akb') return 'bg-emerald-500 shadow-[0_0_4px_#10b981]'
+  if (currentType.value === 'trolleybus_no_akb') return 'bg-orange-500 shadow-[0_0_4px_#f97316]'
   return 'bg-sky-500 shadow-[0_0_4px_#0ea5e9]'
 })
 
@@ -207,6 +215,7 @@ const selectPresetRoute = (routeStr: string) => {
 const addBoardNumber = ref('')
 const addModel = ref('')
 const addType = ref('bus')
+const addHasBatteryAutonomous = ref(false)
 const addValidationErrors = ref<Record<string, string>>({})
 
 watch(() => vehiclesStore.isAddVehicleModalOpen, (newVal) => {
@@ -214,6 +223,7 @@ watch(() => vehiclesStore.isAddVehicleModalOpen, (newVal) => {
     addBoardNumber.value = ''
     addModel.value = ''
     addType.value = 'bus'
+    addHasBatteryAutonomous.value = false
     addValidationErrors.value = {}
   }
 })
@@ -231,12 +241,9 @@ const saveNewVehicle = () => {
       : 0
   const newId = maxId + 1
 
-  const newVehicle = new Vehicle(
-      newId,
-      addBoardNumber.value,
-      addModel.value,
-      addType.value
-  )
+  const newVehicle = addType.value === 'trolleybus'
+      ? new Trolleybus(newId, addBoardNumber.value.trim(), addModel.value.trim(), addHasBatteryAutonomous.value)
+      : new Bus(newId, addBoardNumber.value.trim(), addModel.value.trim())
 
   const { isValid, errors } = newVehicle.validate()
 
@@ -271,6 +278,7 @@ const editVehicleId = ref<number | null>(null)
 const editBoardNumber = ref('')
 const editModel = ref('')
 const editType = ref('bus')
+const editHasBatteryAutonomous = ref(false)
 const editValidationErrors = ref<Record<string, string>>({})
 
 const openEditModal = (vehicle: any) => {
@@ -278,6 +286,7 @@ const openEditModal = (vehicle: any) => {
   editBoardNumber.value = vehicle.boardNumber
   editModel.value = vehicle.model
   editType.value = vehicle.type || 'bus'
+  editHasBatteryAutonomous.value = !!vehicle.hasBatteryAutonomous
   editValidationErrors.value = {}
   isEditModalOpen.value = true
 }
@@ -297,20 +306,37 @@ const saveEditedVehicle = () => {
 
   let updatedVehicle;
   if (originalVehicle.isActive) {
-    updatedVehicle = new ActiveVehicle(
-      editVehicleId.value,
-      editBoardNumber.value,
-      editModel.value,
-      editType.value,
-      originalVehicle.currentRoute
-    )
+    if (editType.value === 'trolleybus') {
+      updatedVehicle = new ActiveTrolleybus(
+        editVehicleId.value,
+        editBoardNumber.value.trim(),
+        editModel.value.trim(),
+        editHasBatteryAutonomous.value,
+        originalVehicle.currentRoute
+      )
+    } else {
+      updatedVehicle = new ActiveBus(
+        editVehicleId.value,
+        editBoardNumber.value.trim(),
+        editModel.value.trim(),
+        originalVehicle.currentRoute
+      )
+    }
   } else {
-    updatedVehicle = new Vehicle(
-      editVehicleId.value,
-      editBoardNumber.value,
-      editModel.value,
-      editType.value
-    )
+    if (editType.value === 'trolleybus') {
+      updatedVehicle = new Trolleybus(
+        editVehicleId.value,
+        editBoardNumber.value.trim(),
+        editModel.value.trim(),
+        editHasBatteryAutonomous.value
+      )
+    } else {
+      updatedVehicle = new Bus(
+        editVehicleId.value,
+        editBoardNumber.value.trim(),
+        editModel.value.trim()
+      )
+    }
   }
 
   const { isValid, errors } = updatedVehicle.validate()
@@ -342,7 +368,7 @@ const saveEditedVehicle = () => {
 </script>
 
 <template>
-  <div class="flex flex-col items-center pb-20 h-full w-full max-w-5xl mx-auto px-4 mt-18 relative">
+  <div class="flex flex-col items-center pb-20 h-full w-full max-w-5xl mx-auto px-4 mt-2 relative">
 
     <!-- Прозорий шар для закриття меню сортування при кліку поза ним -->
     <div v-if="isStatusMenuOpen || isSortMenuOpen || isTypeMenuOpen" @click="closeMenus" class="fixed inset-0 z-40"></div>
@@ -354,81 +380,84 @@ const saveEditedVehicle = () => {
       <VehiclesStats :displayed-vehicles="displayedVehicles" :active-vehicles="activeVehicles" />
 
       <!-- ПРАВА ЧАСТИНА: Сортування та Фільтри -->
-      <div class="flex items-center gap-2 w-full lg:w-auto justify-end relative z-50">
+      <div class="flex flex-col items-end gap-2.5 w-full lg:w-auto justify-end relative z-50">
+        
+        <!-- Рядок 1: Сортування та Статус -->
+        <div class="flex items-center gap-2">
+          <!-- Кнопка сортування -->
+          <div class="relative">
+            <button @click="isSortMenuOpen = !isSortMenuOpen; isStatusMenuOpen = false; isTypeMenuOpen = false"
+                    class="w-9 h-9 rounded-full bg-white border flex items-center justify-center transition-colors shadow-sm"
+                    :class="currentSort !== 'default' ? 'border-gray-200 text-gray-600 bg-sky-50' : 'border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-sky-600'"
+                    title="Сортувати">
+              <SvgIcon name="sort" class="w-4 h-4" />
+            </button>
+            
+            <transition name="menu-fade">
+              <div v-show="isSortMenuOpen" class="absolute right-0 mt-2 w-56 bg-white border border-gray-100 rounded-2xl shadow-xl py-1.5 z-50">
+                <div class="px-3 py-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Сортування</div>
+                <button @click="setSort('default')" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center justify-between" :class="{ 'font-semibold text-sky-600 bg-sky-50/50': currentSort === 'default' }">
+                  За замовчуванням
+                  <span v-if="currentSort === 'default'" class="w-1.5 h-1.5 bg-sky-600 rounded-full"></span>
+                </button>
+                <button @click="setSort('board-asc')" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center justify-between" :class="{ 'font-semibold text-sky-600 bg-sky-50/50': currentSort === 'board-asc' }">
+                  Бортовий номер (а-я)
+                  <span v-if="currentSort === 'board-asc'" class="w-1.5 h-1.5 bg-sky-600 rounded-full"></span>
+                </button>
+                <button @click="setSort('board-desc')" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center justify-between" :class="{ 'font-semibold text-sky-600 bg-sky-50/50': currentSort === 'board-desc' }">
+                  Бортовий номер (я-а)
+                  <span v-if="currentSort === 'board-desc'" class="w-1.5 h-1.5 bg-sky-600 rounded-full"></span>
+                </button>
+                <button @click="setSort('model-asc')" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center justify-between" :class="{ 'font-semibold text-sky-600 bg-sky-50/50': currentSort === 'model-asc' }">
+                  Модель (а-я)
+                  <span v-if="currentSort === 'model-asc'" class="w-1.5 h-1.5 bg-sky-600 rounded-full"></span>
+                </button>
+              </div>
+            </transition>
+          </div>
 
-        <!-- Кнопка сортування -->
-        <div class="relative">
-          <button @click="isSortMenuOpen = !isSortMenuOpen; isStatusMenuOpen = false; isTypeMenuOpen = false"
-                  class="w-9 h-9 rounded-full bg-white border flex items-center justify-center transition-colors shadow-sm"
-                  :class="currentSort !== 'default' ? 'border-gray-200 text-gray-600 bg-sky-50' : 'border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-sky-600'"
-                  title="Сортувати">
-            <SvgIcon name="sort" class="w-4 h-4" />
-          </button>
-          
-          <transition name="menu-fade">
-            <div v-show="isSortMenuOpen" class="absolute right-0 mt-2 w-56 bg-white border border-gray-100 rounded-2xl shadow-xl py-1.5 z-50">
-              <div class="px-3 py-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Сортування</div>
-              <button @click="setSort('default')" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center justify-between" :class="{ 'font-semibold text-sky-600 bg-sky-50/50': currentSort === 'default' }">
-                За замовчуванням
-                <span v-if="currentSort === 'default'" class="w-1.5 h-1.5 bg-sky-600 rounded-full"></span>
-              </button>
-              <button @click="setSort('board-asc')" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center justify-between" :class="{ 'font-semibold text-sky-600 bg-sky-50/50': currentSort === 'board-asc' }">
-                Бортовий номер (а-я)
-                <span v-if="currentSort === 'board-asc'" class="w-1.5 h-1.5 bg-sky-600 rounded-full"></span>
-              </button>
-              <button @click="setSort('board-desc')" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center justify-between" :class="{ 'font-semibold text-sky-600 bg-sky-50/50': currentSort === 'board-desc' }">
-                Бортовий номер (я-а)
-                <span v-if="currentSort === 'board-desc'" class="w-1.5 h-1.5 bg-sky-600 rounded-full"></span>
-              </button>
-              <button @click="setSort('model-asc')" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center justify-between" :class="{ 'font-semibold text-sky-600 bg-sky-50/50': currentSort === 'model-asc' }">
-                Модель (а-я)
-                <span v-if="currentSort === 'model-asc'" class="w-1.5 h-1.5 bg-sky-600 rounded-full"></span>
-              </button>
-            </div>
-          </transition>
+          <!-- Кнопка статусу -->
+          <div class="relative">
+            <button @click="isStatusMenuOpen = !isStatusMenuOpen; isSortMenuOpen = false; isTypeMenuOpen = false"
+                    class="h-9 px-4 rounded-full bg-white border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 flex items-center gap-2 transition-colors shadow-sm"
+                    :class="{ 'border-gray-200 text-gray-600 bg-sky-50': currentStatus !== 'all' }">
+              <div class="w-2 h-2 rounded-full transition-colors" :class="statusDotClass"></div>
+              <span>{{ statusLabel }}</span>
+              <SvgIcon name="chevron-down" class="w-4 h-4 text-gray-400 transition-transform duration-200" :class="isStatusMenuOpen ? 'rotate-180' : ''" />
+            </button>
+            
+            <transition name="menu-fade">
+              <div v-show="isStatusMenuOpen" class="absolute right-0 mt-2 w-48 bg-white border border-gray-100 rounded-2xl shadow-xl py-1.5 z-50">
+                <button @click="setFilter('all')" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center justify-between" :class="{ 'font-semibold text-sky-600 bg-sky-50/50': currentStatus === 'all' }">
+                  <span class="flex items-center gap-2">
+                    <div class="w-2 h-2 rounded-full bg-sky-500 shadow-[0_0_4px_#0ea5e9]"></div>
+                    Всі статуси
+                  </span>
+                  <span v-if="currentStatus === 'all'" class="w-1.5 h-1.5 bg-sky-600 rounded-full"></span>
+                </button>
+                <button @click="setFilter('active')" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center justify-between" :class="{ 'font-semibold text-green-600 bg-sky-50/50': currentStatus === 'active' }">
+                  <span class="flex items-center gap-2">
+                    <div class="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_4px_#22c55e]"></div>
+                    На рейсі
+                  </span>
+                  <span v-if="currentStatus === 'active'" class="w-1.5 h-1.5 bg-sky-600 rounded-full"></span>
+                </button>
+                <button @click="setFilter('inactive')" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center justify-between" :class="{ 'font-semibold text-gray-900 bg-sky-50/50': currentStatus === 'inactive' }">
+                  <span class="flex items-center gap-2">
+                    <div class="w-2 h-2 rounded-full bg-gray-400"></div>
+                    В депо
+                  </span>
+                  <span v-if="currentStatus === 'inactive'" class="w-1.5 h-1.5 bg-sky-600 rounded-full"></span>
+                </button>
+              </div>
+            </transition>
+          </div>
         </div>
 
-        <!-- Кнопка статусу -->
-        <div class="relative">
-          <button @click="isStatusMenuOpen = !isStatusMenuOpen; isSortMenuOpen = false; isTypeMenuOpen = false"
-                  class="h-9 px-4 rounded-full bg-white border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 flex items-center gap-2 transition-colors shadow-sm"
-                  :class="{ 'border-gray-200 text-gray-600 bg-sky-50': currentStatus !== 'all' }">
-            <div class="w-2 h-2 rounded-full transition-colors" :class="statusDotClass"></div>
-            <span>{{ statusLabel }}</span>
-            <SvgIcon name="chevron-down" class="w-4 h-4 text-gray-400 transition-transform duration-200" :class="isStatusMenuOpen ? 'rotate-180' : ''" />
-          </button>
-          
-          <transition name="menu-fade">
-            <div v-show="isStatusMenuOpen" class="absolute right-0 mt-2 w-48 bg-white border border-gray-100 rounded-2xl shadow-xl py-1.5 z-50">
-              <button @click="setFilter('all')" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center justify-between" :class="{ 'font-semibold text-sky-600 bg-sky-50/50': currentStatus === 'all' }">
-                <span class="flex items-center gap-2">
-                  <div class="w-2 h-2 rounded-full bg-sky-500 shadow-[0_0_4px_#0ea5e9]"></div>
-                  Всі статуси
-                </span>
-                <span v-if="currentStatus === 'all'" class="w-1.5 h-1.5 bg-sky-600 rounded-full"></span>
-              </button>
-              <button @click="setFilter('active')" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center justify-between" :class="{ 'font-semibold text-green-600 bg-sky-50/50': currentStatus === 'active' }">
-                <span class="flex items-center gap-2">
-                  <div class="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_4px_#22c55e]"></div>
-                  На рейсі
-                </span>
-                <span v-if="currentStatus === 'active'" class="w-1.5 h-1.5 bg-sky-600 rounded-full"></span>
-              </button>
-              <button @click="setFilter('inactive')" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center justify-between" :class="{ 'font-semibold text-gray-900 bg-sky-50/50': currentStatus === 'inactive' }">
-                <span class="flex items-center gap-2">
-                  <div class="w-2 h-2 rounded-full bg-gray-400"></div>
-                  В депо
-                </span>
-                <span v-if="currentStatus === 'inactive'" class="w-1.5 h-1.5 bg-sky-600 rounded-full"></span>
-              </button>
-            </div>
-          </transition>
-        </div>
-
-        <!-- Кнопка типу ТЗ -->
+        <!-- Рядок 2: Кнопка типу ТЗ -->
         <div class="relative">
           <button @click="isTypeMenuOpen = !isTypeMenuOpen; isSortMenuOpen = false; isStatusMenuOpen = false"
-                  class="h-9 px-4 rounded-full bg-white border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 flex items-center gap-2 transition-colors shadow-sm"
+                  class="h-9 px-4 rounded-full bg-white border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 flex items-center gap-2 transition-colors shadow-sm whitespace-nowrap"
                   :class="{ 'border-gray-200 text-gray-600 bg-sky-50': currentType !== 'all' }">
             <div class="w-2 h-2 rounded-full transition-colors" :class="typeDotClass"></div>
             <span>{{ typeLabel }}</span>
@@ -436,7 +465,7 @@ const saveEditedVehicle = () => {
           </button>
           
           <transition name="menu-fade">
-            <div v-show="isTypeMenuOpen" class="absolute right-0 mt-2 w-48 bg-white border border-gray-100 rounded-2xl shadow-xl py-1.5 z-50">
+            <div v-show="isTypeMenuOpen" class="absolute right-0 mt-2 w-56 bg-white border border-gray-100 rounded-2xl shadow-xl py-1.5 z-50">
               <button @click="setTypeFilter('all')" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center justify-between" :class="{ 'font-semibold text-sky-600 bg-sky-50/50': currentType === 'all' }">
                 <span class="flex items-center gap-2">
                   <div class="w-2 h-2 rounded-full bg-sky-500 shadow-[0_0_4px_#0ea5e9]"></div>
@@ -454,14 +483,27 @@ const saveEditedVehicle = () => {
               <button @click="setTypeFilter('trolleybus')" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center justify-between" :class="{ 'font-semibold text-amber-600 bg-sky-50/50': currentType === 'trolleybus' }">
                 <span class="flex items-center gap-2">
                   <div class="w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_4px_#f59e0b]"></div>
-                  Тролейбуси
+                  Тролейбуси (Всі)
                 </span>
                 <span v-if="currentType === 'trolleybus'" class="w-1.5 h-1.5 bg-sky-600 rounded-full"></span>
+              </button>
+              <button @click="setTypeFilter('trolleybus_akb')" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center justify-between" :class="{ 'font-semibold text-emerald-600 bg-sky-50/50': currentType === 'trolleybus_akb' }">
+                <span class="flex items-center gap-2 pl-4">
+                  <div class="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_4px_#10b981]"></div>
+                  з АКБ
+                </span>
+                <span v-if="currentType === 'trolleybus_akb'" class="w-1.5 h-1.5 bg-sky-600 rounded-full"></span>
+              </button>
+              <button @click="setTypeFilter('trolleybus_no_akb')" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center justify-between" :class="{ 'font-semibold text-orange-600 bg-sky-50/50': currentType === 'trolleybus_no_akb' }">
+                <span class="flex items-center gap-2 pl-4">
+                  <div class="w-2 h-2 rounded-full bg-orange-500 shadow-[0_0_4px_#f97316]"></div>
+                  без АКБ
+                </span>
+                <span v-if="currentType === 'trolleybus_no_akb'" class="w-1.5 h-1.5 bg-sky-600 rounded-full"></span>
               </button>
             </div>
           </transition>
         </div>
-
       </div>
     </div>
 
@@ -500,6 +542,12 @@ const saveEditedVehicle = () => {
             <span class="text-[10px] px-1.5 py-0.5 rounded-full font-semibold border leading-none flex-shrink-0"
                   :class="vehicle.type === 'trolleybus' ? 'bg-amber-50 text-amber-600 border-amber-100' : 'bg-blue-50 text-blue-600 border-blue-100'">
               {{ vehicle.type === 'trolleybus' ? 'Тролейбус' : 'Автобус' }}
+            </span>
+            <span v-if="vehicle.type === 'trolleybus' && vehicle.hasBatteryAutonomous" class="text-[10px] px-1.5 py-0.5 rounded-full font-semibold border leading-none flex-shrink-0 bg-emerald-50 text-emerald-600 border-emerald-100 flex items-center gap-0.5" title="Має автономний хід від батареї">
+              <svg class="w-2.5 h-2.5 text-emerald-500" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd" />
+              </svg>
+              АКБ
             </span>
             <div v-if="vehicle.isActive" class="w-2 h-2 bg-green-500 rounded-full shadow-[0_0_4px_#22c55e]" :title="'На рейсі: ' + vehicle.currentRoute"></div>
           </h3>
@@ -754,6 +802,30 @@ const saveEditedVehicle = () => {
               </div>
             </div>
 
+            <!-- Autonomous battery field for Trolleybus -->
+            <transition
+              enter-active-class="transition ease-out duration-200"
+              enter-from-class="opacity-0 -translate-y-2"
+              enter-to-class="opacity-100 translate-y-0"
+              leave-active-class="transition ease-in duration-150"
+              leave-from-class="opacity-100 translate-y-0"
+              leave-to-class="opacity-0 -translate-y-2"
+            >
+              <div v-if="addType === 'trolleybus'" class="space-y-1.5 mt-3">
+                <label class="flex items-center gap-3 cursor-pointer p-3 bg-amber-50/50 border border-amber-100/80 rounded-2xl transition-all hover:bg-amber-50">
+                  <input
+                    v-model="addHasBatteryAutonomous"
+                    type="checkbox"
+                    class="w-5 h-5 text-amber-600 border-gray-300 rounded focus:ring-amber-500 focus:ring-offset-0 cursor-pointer"
+                  >
+                  <div class="flex flex-col">
+                    <span class="text-sm font-semibold text-gray-700">Автономний хід від батареї</span>
+                    <span class="text-xs text-gray-500">Чи здатний тролейбус рухатися без контактної мережі</span>
+                  </div>
+                </label>
+              </div>
+            </transition>
+
             <div class="pt-6 border-t border-gray-100 flex flex-col sm:flex-row gap-3 justify-end">
               <button
                   type="button"
@@ -859,6 +931,30 @@ const saveEditedVehicle = () => {
                 </div>
               </div>
             </div>
+
+            <!-- Autonomous battery field for Trolleybus (Edit) -->
+            <transition
+              enter-active-class="transition ease-out duration-200"
+              enter-from-class="opacity-0 -translate-y-2"
+              enter-to-class="opacity-100 translate-y-0"
+              leave-active-class="transition ease-in duration-150"
+              leave-from-class="opacity-100 translate-y-0"
+              leave-to-class="opacity-0 -translate-y-2"
+            >
+              <div v-if="editType === 'trolleybus'" class="space-y-1.5 mt-3">
+                <label class="flex items-center gap-3 cursor-pointer p-3 bg-amber-50/50 border border-amber-100/80 rounded-2xl transition-all hover:bg-amber-50">
+                  <input
+                    v-model="editHasBatteryAutonomous"
+                    type="checkbox"
+                    class="w-5 h-5 text-amber-600 border-gray-300 rounded focus:ring-amber-500 focus:ring-offset-0 cursor-pointer"
+                  >
+                  <div class="flex flex-col">
+                    <span class="text-sm font-semibold text-gray-700">Автономний хід від батареї</span>
+                    <span class="text-xs text-gray-500">Чи здатний тролейбус рухатися без контактної мережі</span>
+                  </div>
+                </label>
+              </div>
+            </transition>
 
             <div class="pt-6 border-t border-gray-100 flex flex-col sm:flex-row gap-3 justify-end">
               <button

@@ -1,0 +1,1123 @@
+<script setup>
+import { ref, computed, onMounted } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
+import { useStopsStore } from '@/stores/stops';
+import RouteCanvas from './components/RouteCanvas.vue';
+import StopSelector from './components/StopSelector.vue';
+
+const router = useRouter();
+const route = useRoute();
+const stopsStore = useStopsStore();
+
+/* ─────────── Route meta ─────────── */
+const routeNumber      = ref('1');
+const routeLetter      = ref('А');
+const routeColor       = ref('#1D43EF');
+const selectedWorkMode = ref(1);
+const workModes = [
+  { id: 1, name: 'Змінний',          value: '1' },
+  { id: 2, name: 'Одинарний "Пік"',  value: '2' },
+  { id: 3, name: '10 Годинний',      value: '5' },
+];
+
+/* ─────────── Time scrubber ─────────── */
+const timeStart = ref(360);   // 06:00
+const timeEnd   = ref(640);   // 10:40
+function fmtTime(min) {
+  return `${String(Math.floor(min / 60)).padStart(2,'0')}:${String(min % 60).padStart(2,'0')}`;
+}
+function shiftTime(delta) {
+  timeStart.value = Math.max(0,    Math.min(1380, timeStart.value + delta));
+  timeEnd.value   = Math.max(60,   Math.min(1440, timeEnd.value   + delta));
+}
+
+/* ─────────── Data model ─────────── */
+const nodes = ref([
+  { id: 1, type: 'control', isTerminus: true, name: 'Кінцева 1', terminusStop: 'Центральна площа', waitMin: 5, waitMax: 9 },
+  { id: 2, type: 'control', name: 'Контрольна 1', side: 'right' },
+  { id: 3, type: 'control', name: 'Контрольна 2', side: 'right' },
+  { id: 4, type: 'control', name: 'Контрольна 1 (Зворотня)', side: 'left' },
+  { id: 5, type: 'control', name: 'Контрольна 2 (Зворотня)', side: 'left' },
+  { id: 6, type: 'control', isTerminus: true, name: 'Кінцева 2', terminusStop: 'Вокзал', waitMin: 5, waitMax: 9 },
+]);
+
+const segments = ref([
+  { id: 1, side: 'right', travelTime: 6,  interval: '20', intervalMax: '25', stops: [
+    { id: 101, name: 'Зупинка 1', side: 'right' },
+    { id: 102, name: 'Зупинка 2', side: 'right' },
+  ]},
+  { id: 2, side: 'right', travelTime: 6,  interval: '20', intervalMax: '25', stops: [
+    { id: 201, name: 'Зупинка 3', side: 'right' },
+  ]},
+  { id: 3, side: 'right', travelTime: 6,  interval: '20', intervalMax: '25', stops: [] },
+  { id: 4, side: 'left', travelTime: 6,  interval: '20', intervalMax: '25', stops: [
+    { id: 301, name: 'Зупинка 4', side: 'left' },
+  ]},
+  { id: 5, side: 'left', travelTime: 6,  interval: '20', intervalMax: '25', stops: [
+    { id: 401, name: 'Зупинка 5', side: 'left' },
+    { id: 402, name: 'Зупинка 6', side: 'left' },
+  ]},
+  { id: 6, side: 'left', travelTime: 6,  interval: '20', intervalMax: '25', stops: [] },
+]);
+
+const branches = ref([]);
+
+/* ─────────── Sidebar Toggle & Resize ─────────── */
+const isSidebarOpen = ref(true);
+const sidebarWidth = ref(380);
+const isResizing = ref(false);
+
+const startResize = (e) => {
+  isResizing.value = true;
+  document.addEventListener('mousemove', handleResize);
+  document.addEventListener('mouseup', stopResize);
+};
+
+const handleResize = (e) => {
+  if (isResizing.value) {
+    const newWidth = window.innerWidth - e.clientX;
+    if (newWidth > 300 && newWidth < 800) {
+      sidebarWidth.value = newWidth;
+    }
+  }
+};
+
+const stopResize = () => {
+  isResizing.value = false;
+  document.removeEventListener('mousemove', handleResize);
+  document.removeEventListener('mouseup', stopResize);
+};
+
+/* ─────────── Branch Mode ─────────── */
+const isBranchMode = ref(false);
+const isAnimationPaused = ref(false);
+
+/* ─────────── routeData object for canvas ─────────── */
+const routeData = computed(() => ({
+  routeNumber: routeNumber.value,
+  nodes: nodes.value.map(n => ({
+    ...n,
+    isDepot: getStopType(n.realId) === 'depo'
+  })),
+  segments: segments.value,
+  branches: branches.value,
+  color: routeColor.value
+}));
+
+/* ─────────── Mutations ─────────── */
+function addStop(sIdx, side) {
+  segments.value[sIdx].stops.push({ id: Date.now(), name: 'Нова зупинка', side });
+}
+function removeStop(sIdx, stIdx) {
+  segments.value[sIdx].stops.splice(stIdx, 1);
+}
+
+function addControlNode(side = 'right') {
+  const newId = Date.now();
+  const ctrlCount = nodes.value.filter(n => n.type === 'control').length;
+  let insertNodeIdx = nodes.value.length - 1; // Default for right side (before end node)
+  if (side === 'left') {
+    // Find the first left node to insert before it
+    const firstLeftIdx = nodes.value.findIndex(n => n.side === 'left');
+    if (firstLeftIdx !== -1) {
+      insertNodeIdx = firstLeftIdx;
+    } else {
+      insertNodeIdx = nodes.value.length - 1; // fallback
+    }
+  }
+
+  nodes.value.splice(insertNodeIdx, 0, {
+    id: newId, type: 'control',
+    name: 'Контрольна ' + (ctrlCount + 1),
+    side: side
+  });
+
+  // Find the segment to split (last for right, first for left)
+  let targetSegIdx = -1;
+  if (side === 'left') {
+    for (let i = 0; i < segments.value.length; i++) {
+      if (segments.value[i].side === side || !segments.value[i].side) {
+        targetSegIdx = i;
+        break;
+      }
+    }
+  } else {
+    for (let i = segments.value.length - 1; i >= 0; i--) {
+      if (segments.value[i].side === side || !segments.value[i].side) {
+        targetSegIdx = i;
+        break;
+      }
+    }
+  }
+
+  if (targetSegIdx !== -1) {
+    const old = segments.value[targetSegIdx];
+    const half = Math.floor(old.travelTime / 2);
+    const oldSide = old.side || side;
+    
+    if (side === 'left') {
+      // For left side, array is top-to-bottom, but vehicle travels bottom-to-top.
+      // Top segment (Segment A) should be empty, bottom segment (Segment B) gets old stops.
+      segments.value.splice(targetSegIdx, 1,
+        { id: newId + 1, travelTime: half,                  interval: old.interval, intervalMax: old.intervalMax, stops: [], side: oldSide },
+        { id: newId + 2, travelTime: old.travelTime - half, interval: old.interval, intervalMax: old.intervalMax, stops: [...old.stops], side: oldSide }
+      );
+    } else {
+      // For right side, Segment A gets old stops, Segment B gets empty stops.
+      segments.value.splice(targetSegIdx, 1,
+        { id: newId + 1, travelTime: half,                  interval: old.interval, intervalMax: old.intervalMax, stops: [...old.stops], side: oldSide },
+        { id: newId + 2, travelTime: old.travelTime - half, interval: old.interval, intervalMax: old.intervalMax, stops: [], side: oldSide }
+      );
+    }
+  }
+
+  setTimeout(() => {
+    if (canvasRef.value) canvasRef.value.focusNode(newId);
+  }, 80);
+}
+
+function removeNode(idx) {
+  if (nodes.value[idx].type === 'end') return;
+  const nodeSide = nodes.value[idx].side || 'right';
+  nodes.value.splice(idx, 1);
+  
+  // Find segments of this side to merge
+  let segIdx1 = -1, segIdx2 = -1;
+  for (let i = 0; i < segments.value.length; i++) {
+    if (segments.value[i].side === nodeSide || !segments.value[i].side) {
+      if (segIdx1 === -1) segIdx1 = i;
+      else { segIdx2 = i; break; }
+    }
+  }
+  
+  if (segIdx1 !== -1 && segIdx2 !== -1) {
+    const L = segments.value[segIdx1];
+    const R = segments.value[segIdx2];
+    segments.value.splice(segIdx1, 2, {
+      id: Date.now(),
+      travelTime: L.travelTime + R.travelTime,
+      interval: L.interval, intervalMax: L.intervalMax,
+      stops: [...L.stops, ...R.stops],
+      side: nodeSide
+    });
+  }
+}
+
+function addBranch(sIdx, parentBranchId = null, parentNodeId = null) {
+  let segIdx = sIdx;
+  if (parentBranchId) {
+    const parentBr = branches.value.find(b => b.id === parentBranchId);
+    if (parentBr) segIdx = parentBr.segIdx;
+  }
+  branches.value.push({
+    id: Date.now(),
+    segIdx: segIdx ?? 0,
+    parentBranchId: parentBranchId,
+    parentNodeId: parentNodeId || 'endpoint',
+    name: parentBranchId 
+      ? 'Підрозгалудження ' + (branches.value.length + 1)
+      : 'Розгалудження ' + (branches.value.length + 1),
+    finished: false,
+    nodes: []
+  });
+}
+
+const finishBranchTarget = ref(null);
+const selectedFinishType = ref('current');
+const selectedFinishNodeId = ref(null);
+
+const currentFinishingBranch = computed(() => branches.value.find(b => b.id === finishBranchTarget.value));
+const isFinishingSubBranch = computed(() => !!currentFinishingBranch.value?.parentBranchId);
+
+const parentBranchForFinishing = computed(() => {
+  if (!isFinishingSubBranch.value) return null;
+  return branches.value.find(b => b.id === currentFinishingBranch.value.parentBranchId);
+});
+
+const finishingNodeOptions = computed(() => {
+  if (isFinishingSubBranch.value) {
+    // Control nodes of the parent branch only!
+    return parentBranchForFinishing.value?.nodes || [];
+  } else {
+    // Control nodes of the same side of the main loop
+    const brSegIdx = currentFinishingBranch.value?.segIdx ?? 0;
+    const seg = segments.value[brSegIdx] || segments.value[0];
+    const side = seg?.side || 'right';
+    return nodes.value.filter(n => n.type !== 'end' && (n.side === side || !n.side));
+  }
+});
+
+function finishBranch(brId) {
+  finishBranchTarget.value = brId;
+  selectedFinishType.value = 'current';
+  selectedFinishNodeId.value = null;
+}
+
+function confirmFinishBranch() {
+  if (!finishBranchTarget.value) return;
+  const br = branches.value.find(b => b.id === finishBranchTarget.value);
+  if (br) {
+    br.targetType = selectedFinishType.value;
+    br.targetNodeId = selectedFinishNodeId.value;
+    br.finished = true;
+  }
+  finishBranchTarget.value = null;
+}
+
+function addBranchNode(brId) {
+  const br = branches.value.find(b => b.id === brId);
+  if (br) {
+    if (!br.nodes) br.nodes = [];
+    br.nodes.push({
+      id: 'br_node_' + Date.now(),
+      name: 'Контрольна ' + (br.nodes.length + 1)
+    });
+  }
+}
+
+function addBranchStop(brId, sectionIdx = 0) {
+  const br = branches.value.find(b => b.id === brId);
+  if (br) {
+    if (!br.sections) br.sections = [];
+    while (br.sections.length <= sectionIdx) {
+      br.sections.push({ stops: [] });
+    }
+    br.sections[sectionIdx].stops.push({
+      id: 'br_stop_' + Date.now(),
+      name: 'Зупинка ' + (br.sections[sectionIdx].stops.length + 1)
+    });
+  }
+}
+/* ─────────── Edit overlays ─────────── */
+const editSeg  = ref(null);
+const editNode = ref(null);
+
+/* ─────────── Totals ─────────── */
+const totalStops = computed(() => segments.value.reduce((a, s) => a + s.stops.length, 0));
+const firstTerminus = computed(() => {
+  const top = nodes.value.find(n => !n.side);
+  if (top && top.isTerminus) return top;
+  
+  const right = nodes.value.find(n => n.side === 'right' && n.isTerminus);
+  if (right) return right;
+  
+  const bot = nodes.value.filter(n => !n.side)[1];
+  if (bot && bot.isTerminus) return bot;
+  
+  const lefts = nodes.value.filter(n => n.side === 'left');
+  for (let i = lefts.length - 1; i >= 0; i--) {
+    if (lefts[i].isTerminus) return lefts[i];
+  }
+  
+  return endNodes.value[0];
+});
+
+const totalTime  = computed(() => {
+  const travel = segments.value.reduce((a, s) => a + Number(s.travelTime || 0), 0);
+  let wait = endNodes.value.reduce((a, n) => a + Number(n.waitMin || 0), 0);
+  // Turnaround time starts from the first terminus, so we don't include its wait time
+  if (firstTerminus.value) {
+    wait -= Number(firstTerminus.value.waitMin || 0);
+  }
+  return travel + wait;
+});
+const endNodes   = computed(() => nodes.value.filter(n => n.isTerminus));
+const topNode    = computed(() => nodes.value.find(n => !n.side) || endNodes.value[0]);
+const bottomNode = computed(() => nodes.value.filter(n => !n.side)[1] || nodes.value.find(n => !n.side) || endNodes.value[1]);
+
+const getSegmentName = (seg) => {
+  const side = seg.side || 'right';
+  const sideNodes = nodes.value.filter(n => n.type === 'end' || n.side === side || !n.side);
+  const sideSegs = segments.value.filter(s => s.side === side || !s.side);
+  const idx = sideSegs.findIndex(s => s.id === seg.id);
+  if (idx === -1 || !sideNodes[idx] || !sideNodes[idx+1]) return 'Ділянка';
+  if (side === 'left') {
+    return `${sideNodes[idx+1].name} → ${sideNodes[idx].name}`;
+  }
+  return `${sideNodes[idx].name} → ${sideNodes[idx+1].name}`;
+};
+
+/* ─────────── Sidebar Segment Editor ─────────── */
+const activeSegmentId = computed(() => route.query.segmentId);
+const activeSegment = computed(() => {
+  if (!activeSegmentId.value) return null;
+  const id = parseInt(activeSegmentId.value);
+  let found = segments.value.find(s => s.id === id);
+  if (found) return found;
+  // Also search branches if needed
+  for (const br of branches.value) {
+    if (br.sections) {
+      for (const sec of br.sections) {
+        if (sec.id === id) return sec;
+      }
+    }
+  }
+  return null;
+});
+
+const availableStops = computed(() => {
+  return stopsStore.stopsList.map(s => ({
+    id: s.stopId,
+    name: s.name,
+    direction: s.directionComment,
+    type: s.type
+  }));
+});
+
+function assignRealStop(stopInSeg, realStopIdStr) {
+  const realStopId = parseInt(realStopIdStr);
+  const realStop = availableStops.value.find(s => s.id === realStopId);
+  if (realStop) {
+    stopInSeg.realId = realStop.id;
+    stopInSeg.name = realStop.name;
+  }
+}
+
+function getStopDirection(realId) {
+  if (!realId) return '';
+  const realStop = availableStops.value.find(s => s.id === realId);
+  return realStop ? realStop.direction : '';
+}
+
+function createNewStopForSeg(stopInSeg, newName) {
+  const newStopId = Date.now();
+  stopsStore.addStop({
+    stopId: newStopId,
+    name: newName,
+    directionComment: 'новий напрямок',
+    type: 'normal',
+    directionCode: 1,
+    latitude: 0,
+    longitude: 0,
+    platformsCount: 1
+  });
+  stopInSeg.realId = newStopId;
+  stopInSeg.name = newName;
+}
+
+function getStopType(realId) {
+  if (!realId) return 'normal';
+  const realStop = availableStops.value.find(s => s.id === realId);
+  return realStop ? realStop.type : 'normal';
+}
+
+function assignRealStopToNode(node, realStopIdStr) {
+  if (!realStopIdStr) {
+    node.realId = null;
+    node.terminusStop = '';
+    node.name = node.isTerminus ? `Кінцева ${node.id}` : `Контрольна ${node.id}`;
+    return;
+  }
+  const realStopId = parseInt(realStopIdStr);
+  const realStop = availableStops.value.find(s => s.id === realStopId);
+  if (realStop) {
+    node.realId = realStop.id;
+    node.terminusStop = realStop.name;
+    node.name = realStop.name;
+  }
+}
+
+function createNewStopForNode(node, newName) {
+  const newStopId = Date.now();
+  stopsStore.addStop({
+    stopId: newStopId,
+    name: newName,
+    directionComment: 'Кінцева',
+    type: 'end',
+    directionCode: 1,
+    latitude: 0,
+    longitude: 0,
+    platformsCount: 1
+  });
+  node.realId = newStopId;
+  node.terminusStop = newName;
+  node.name = newName;
+}
+
+function makeTerminus(nodeId) {
+  if (!nodeId) return;
+  const n = nodes.value.find(x => String(x.id) === String(nodeId));
+  if (n) {
+    n.isTerminus = true;
+    if (!n.realId) {
+      n.name = `Кінцева ${n.id}`;
+    }
+    // Focus the camera on the new terminus
+    setTimeout(() => {
+      if (canvasRef.value) canvasRef.value.focusNode(n.id);
+    }, 80);
+  }
+}
+
+function removeTerminus(node) {
+  node.isTerminus = false;
+  node.realId = null;
+  node.terminusStop = '';
+  node.name = `Контрольна ${node.id}`;
+}
+
+function removeStopFromSeg(seg, stopIdx) {
+  seg.stops.splice(stopIdx, 1);
+}
+
+function closeSegmentEditor() {
+  const query = { ...route.query };
+  delete query.segmentId;
+  router.push({ query });
+}
+
+/* ─────────── All Segments (Main + Branches) ─────────── */
+const allSegmentsList = computed(() => {
+  const list = [];
+  
+  // Right segments (normal order)
+  segments.value.filter(s => s.side === 'right' || !s.side).forEach(seg => {
+    list.push({
+      id: seg.id,
+      name: getSegmentName(seg),
+      travelTime: seg.travelTime,
+      interval: seg.interval,
+      intervalMax: seg.intervalMax,
+      stops: seg.stops,
+      isBranch: false,
+      rawSeg: seg
+    });
+  });
+  
+  // Left segments (reversed order)
+  const leftSegs = segments.value.filter(s => s.side === 'left');
+  for (let i = leftSegs.length - 1; i >= 0; i--) {
+    const seg = leftSegs[i];
+    list.push({
+      id: seg.id,
+      name: getSegmentName(seg),
+      travelTime: seg.travelTime,
+      interval: seg.interval,
+      intervalMax: seg.intervalMax,
+      stops: seg.stops,
+      isBranch: false,
+      rawSeg: seg
+    });
+  }
+  
+  // Branch segments
+  branches.value.forEach((br, bIdx) => {
+    const brName = br.name || `Розгалудження ${bIdx + 1}`;
+    const brNodes = br.nodes || [];
+    
+    if (brNodes.length === 0) {
+      list.push({
+        id: 'br-seg-' + br.id + '-0',
+        name: `${brName} → Кінець розгалудження`,
+        travelTime: 5,
+        interval: '15',
+        intervalMax: '20',
+        stops: [],
+        isBranch: true,
+        branchId: br.id,
+        rawSeg: null
+      });
+    } else {
+      // First section: Branch -> Node 1
+      list.push({
+        id: 'br-seg-' + br.id + '-0',
+        name: `${brName} → ${brNodes[0].name}`,
+        travelTime: 5,
+        interval: '15',
+        intervalMax: '20',
+        stops: [],
+        isBranch: true,
+        branchId: br.id,
+        rawSeg: null
+      });
+      
+      // Intermediate sections: Node i -> Node i+1
+      for (let i = 0; i < brNodes.length - 1; i++) {
+        list.push({
+          id: 'br-seg-' + br.id + '-' + (i + 1),
+          name: `${brNodes[i].name} → ${brNodes[i+1].name}`,
+          travelTime: 5,
+          interval: '15',
+          intervalMax: '20',
+          stops: [],
+          isBranch: true,
+          branchId: br.id,
+          rawSeg: null
+        });
+      }
+      
+      // Last section: Node last -> End
+      list.push({
+        id: 'br-seg-' + br.id + '-' + brNodes.length,
+        name: `${brNodes[brNodes.length - 1].name} → Кінець розгалудження`,
+        travelTime: 5,
+        interval: '15',
+        intervalMax: '20',
+        stops: [],
+        isBranch: true,
+        branchId: br.id,
+        rawSeg: null
+      });
+    }
+  });
+  
+  return list;
+});
+
+/* ─────────── Canvas ref (for zoom controls in toolbar) ─────────── */
+const canvasRef = ref(null);
+</script>
+
+<template>
+  <div class="fixed inset-0 z-50 flex overflow-hidden bg-[#edf0f7]"
+       style="font-family:'Inter',sans-serif;">
+
+    <!-- ════════════════════════════════════════
+         CANVAS AREA
+    ════════════════════════════════════════ -->
+    <div class="flex-1 relative overflow-hidden">
+
+      <!-- Canvas -->
+      <RouteCanvas
+        ref="canvasRef"
+        :route-data="routeData"
+        :is-branch-mode="isBranchMode"
+        :editable="true"
+        @edit-segment="seg  => editSeg  = seg"
+        @edit-node="   node => editNode = node"
+        @add-stop="    (sIdx, side) => addStop(sIdx, side)"
+        @remove-stop=" (sIdx, stIdx) => removeStop(sIdx, stIdx)"
+        @add-node="    (side) => addControlNode(side)"
+        @remove-node=" idx => removeNode(idx)"
+        @add-branch="(sIdx) => addBranch(sIdx)"
+        @add-sub-branch="(pId, pNodeId) => addBranch(null, pId, pNodeId)"
+        @finish-branch="(brId) => finishBranch(brId)"
+        @add-branch-node="(brId) => addBranchNode(brId)"
+        @add-branch-stop="(brId) => addBranchStop(brId)"
+        @toggle-branch-mode="isBranchMode = !isBranchMode"
+        :is-animation-paused="isAnimationPaused"
+      />
+
+      <!-- ── Top-left Menu (Figma Style) ── -->
+      <div class="absolute top-5 left-6 z-50 flex flex-col gap-3 pointer-events-auto select-none">
+        
+        <div class="flex items-start gap-3">
+          <!-- Large Route Number on Blueprint Background -->
+          <div class="w-16 h-16 border-2 flex items-center justify-center relative overflow-hidden bg-white"
+               :style="{
+                 borderColor: routeColor,
+                 backgroundImage: `linear-gradient(${routeColor}1A 1px, transparent 1px), linear-gradient(90deg, ${routeColor}1A 1px, transparent 1px)`,
+                 backgroundSize: '8px 8px'
+               }">
+            <span class="font-black leading-none select-none z-10 tracking-tighter"
+                  :class="{
+                    'text-[32px]': ((routeNumber || '1').toString() + (routeLetter || '')).length <= 2,
+                    'text-[26px]': ((routeNumber || '1').toString() + (routeLetter || '')).length === 3,
+                    'text-[20px]': ((routeNumber || '1').toString() + (routeLetter || '')).length >= 4
+                  }"
+                  :style="{ color: routeColor, WebkitTextStroke: '1px white' }">
+              {{ routeNumber || '1' }}{{ routeLetter }}
+            </span>
+          </div>
+
+          <!-- 4 Buttons in 2 Rows -->
+          <div class="grid grid-cols-2 gap-2">
+            <!-- Cloud / Save -->
+            <button class="w-8 h-8 rounded-full border border-gray-300 bg-white shadow-sm flex items-center justify-center text-gray-700 hover:bg-gray-50 cursor-pointer">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" /></svg>
+            </button>
+            <!-- Undo -->
+            <button class="w-8 h-8 rounded-full border border-gray-300 bg-white shadow-sm flex items-center justify-center text-gray-700 hover:bg-gray-50 cursor-pointer">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
+            </button>
+            <!-- Branch Toggle (Y symbol) -->
+            <button @click="isBranchMode = !isBranchMode"
+                    class="w-8 h-8 rounded-full border shadow-sm flex items-center justify-center transition-colors cursor-pointer"
+                    :class="isBranchMode ? 'text-white' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'"
+                    :style="isBranchMode ? { backgroundColor: routeColor, borderColor: routeColor } : {}">
+              <span class="font-bold font-serif text-sm">Y</span>
+            </button>
+            <!-- Animation Toggle (Play/Pause) -->
+            <button @click="isAnimationPaused = !isAnimationPaused"
+                    class="w-8 h-8 rounded-full border shadow-sm flex items-center justify-center transition-colors cursor-pointer"
+                    :class="isAnimationPaused ? 'bg-orange-100 text-orange-600 border-orange-300' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'">
+              <svg v-if="isAnimationPaused" class="w-4 h-4 ml-0.5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+              <svg v-else class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" /></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Time Scrubber -->
+        <div class="flex items-center justify-between bg-white border border-gray-200 rounded-full px-3 py-1.5 text-xs font-semibold text-gray-700 shadow-sm w-max gap-4">
+          <button @click="shiftTime(-15)" class="text-gray-400 hover:text-blue-600 transition-colors cursor-pointer">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" /></svg>
+          </button>
+          <span class="tabular-nums font-bold tracking-tight">{{ fmtTime(timeStart) }}-{{ fmtTime(timeEnd) }}</span>
+          <button @click="shiftTime(15)"  class="text-gray-400 hover:text-blue-600 transition-colors cursor-pointer">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- ── Top-right button to toggle sidebar ── -->
+      <button @click="isSidebarOpen = !isSidebarOpen"
+              class="absolute top-5 right-5 z-50 bg-white border border-gray-200 shadow-md rounded-xl px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 transition-all flex items-center gap-1.5 cursor-pointer pointer-events-auto">
+        <svg class="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" :d="isSidebarOpen ? 'M13 5l7 7-7 7M5 5l7 7-7 7' : 'M11 19l-7-7 7-7M19 19l-7-7 7-7'" />
+        </svg>
+        <span>{{ isSidebarOpen ? 'Сховати меню' : 'Показати меню' }}</span>
+      </button>
+
+      <!-- ── Edit segment modal ── -->
+      <Teleport to="body">
+        <div v-if="editSeg"
+             class="fixed inset-0 z-[200] flex items-center justify-center bg-black/20 backdrop-blur-[2px]"
+             @click.self="editSeg = null">
+          <div class="bg-white rounded-2xl shadow-2xl p-6 w-72 border border-gray-100">
+            <h3 class="text-base font-bold text-gray-900 mb-4">Параметри ділянки</h3>
+            <label class="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Час проходження (хв)</label>
+            <input v-model.number="editSeg.travelTime" type="number" min="1"
+              class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm font-bold mb-3 bg-gray-50 focus:outline-none focus:border-blue-400"/>
+            <div class="grid grid-cols-2 gap-2 mb-4">
+              <div>
+                <label class="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Інтервал від</label>
+                <input v-model="editSeg.interval" type="text"
+                  class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm font-bold bg-gray-50 focus:outline-none focus:border-blue-400"/>
+              </div>
+              <div>
+                <label class="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Інтервал до</label>
+                <input v-model="editSeg.intervalMax" type="text"
+                  class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm font-bold bg-gray-50 focus:outline-none focus:border-blue-400"/>
+              </div>
+            </div>
+            <button @click="editSeg = null"
+              class="w-full py-2.5 rounded-xl font-bold text-white text-sm shadow-sm hover:opacity-90 transition-opacity"
+              :style="{ backgroundColor: routeColor }">Готово</button>
+          </div>
+        </div>
+
+        <!-- ── Finish Branch Selection Modal ── -->
+        <div v-if="finishBranchTarget"
+             class="fixed inset-0 z-[200] flex items-center justify-center bg-black/30 backdrop-blur-[2px]"
+             @click.self="finishBranchTarget = null">
+          <div class="bg-white rounded-2xl shadow-2xl p-6 w-96 border border-gray-100 flex flex-col gap-4">
+            <div>
+              <h3 class="text-base font-bold text-gray-900">
+                {{ isFinishingSubBranch ? 'Завершення підрозгалудження' : 'Завершення розгалудження' }}
+              </h3>
+              <p class="text-xs text-gray-500 mt-1">Оберіть точку, в яку має входити колія:</p>
+            </div>
+
+            <div class="flex flex-col gap-2.5">
+              <!-- Option 1: Current segment -->
+              <label @click="selectedFinishType = 'current'"
+                     class="flex items-start gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all"
+                     :class="selectedFinishType === 'current' ? 'border-blue-500 bg-blue-50/40' : 'border-gray-100 hover:border-gray-200 bg-gray-50/50'">
+                <input type="radio" value="current" v-model="selectedFinishType" class="mt-0.5"/>
+                <div>
+                  <div class="text-xs font-bold text-gray-800">
+                    {{ isFinishingSubBranch ? 'Поточна ділянка підрозгалудження (перед зупинками)' : 'Поточна ділянка (перед зупинками)' }}
+                  </div>
+                  <div class="text-[11px] text-gray-500 mt-0.5">Вхід прямо перед зупинками цієї ділянки</div>
+                </div>
+              </label>
+
+              <!-- Option 2: Control node -->
+              <label @click="selectedFinishType = 'node'"
+                     class="flex items-start gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all"
+                     :class="selectedFinishType === 'node' ? 'border-blue-500 bg-blue-50/40' : 'border-gray-100 hover:border-gray-200 bg-gray-50/50'">
+                <input type="radio" value="node" v-model="selectedFinishType" class="mt-0.5"/>
+                <div class="flex-1">
+                  <div class="text-xs font-bold text-gray-800">
+                    {{ isFinishingSubBranch ? 'До контрольної точки цього розгалудження' : 'До контрольної точки цієї сторони' }}
+                  </div>
+                  <div class="text-[11px] text-gray-500 mt-0.5">Вхід у вибрану контрольну точку</div>
+                  <select v-if="selectedFinishType === 'node'"
+                          v-model="selectedFinishNodeId"
+                          class="w-full mt-2 text-xs font-bold bg-white border border-gray-200 rounded-lg p-2 focus:outline-none focus:border-blue-500">
+                    <option :value="null">Оберіть контрольну точку...</option>
+                    <option v-for="node in finishingNodeOptions" :key="node.id" :value="node.id">
+                      {{ node.name }}
+                    </option>
+                  </select>
+                </div>
+              </label>
+
+              <!-- Option 3: Bottom turnaround arc OR parent branch end -->
+              <label @click="selectedFinishType = isFinishingSubBranch ? 'parent_end' : 'bottom_arc'"
+                     class="flex items-start gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all"
+                     :class="(selectedFinishType === 'bottom_arc' || selectedFinishType === 'parent_end') ? 'border-blue-500 bg-blue-50/40' : 'border-gray-100 hover:border-gray-200 bg-gray-50/50'">
+                <input type="radio" :value="isFinishingSubBranch ? 'parent_end' : 'bottom_arc'" v-model="selectedFinishType" class="mt-0.5"/>
+                <div>
+                  <div class="text-xs font-bold text-gray-800">
+                    {{ isFinishingSubBranch ? 'До закінчення цього розгалудження' : 'Нижнє оборотне коло (закруглення)' }}
+                  </div>
+                  <div class="text-[11px] text-gray-500 mt-0.5">
+                    {{ isFinishingSubBranch ? 'Злиття із точкою закінчення батьківського розгалудження' : 'Плавне злиття із дугою в самому низу оборотного кола' }}
+                  </div>
+                </div>
+              </label>
+            </div>
+
+            <div class="flex gap-2 mt-2">
+              <button @click="finishBranchTarget = null"
+                      class="flex-1 py-2.5 rounded-xl font-bold text-xs text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors">
+                Скасувати
+              </button>
+              <button @click="confirmFinishBranch"
+                      class="flex-1 py-2.5 rounded-xl font-bold text-xs text-white shadow-sm hover:opacity-90 transition-opacity"
+                      :style="{ backgroundColor: routeColor }">
+                Підтвердити
+              </button>
+            </div>
+          </div>
+        </div>
+      </Teleport>
+
+      <!-- ── Edit control node modal ── -->
+      <Teleport to="body">
+        <div v-if="editNode"
+             class="fixed inset-0 z-[200] flex items-center justify-center bg-black/20 backdrop-blur-[2px]"
+             @click.self="editNode = null">
+          <div class="bg-white rounded-2xl shadow-2xl p-6 w-64 border border-gray-100">
+            <h3 class="text-base font-bold text-gray-900 mb-4">Контрольна зупинка</h3>
+            <label class="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Назва</label>
+            <input v-model="editNode.name" type="text"
+              class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm font-bold mb-4 bg-gray-50 focus:outline-none focus:border-blue-400"/>
+            <button @click="editNode = null"
+              class="w-full py-2.5 rounded-xl font-bold text-white text-sm shadow-sm hover:opacity-90 transition-opacity"
+              :style="{ backgroundColor: routeColor }">Готово</button>
+          </div>
+        </div>
+      </Teleport>
+
+    </div>
+
+    <!-- ════════════════════════════════════════
+         RIGHT PANEL
+    ════════════════════════════════════════ -->
+    <div v-show="isSidebarOpen"
+         :style="{ width: sidebarWidth + 'px' }"
+         class="relative border-l border-gray-200 bg-white flex flex-col shrink-0 shadow-xl transition-all"
+         :class="{ 'duration-300': !isResizing }">
+      
+      <!-- Drag handle -->
+      <div class="absolute top-0 left-0 bottom-0 w-1.5 cursor-col-resize hover:bg-blue-400/30 z-[100] transition-colors"
+           @mousedown="startResize"></div>
+           
+      <!-- Scrollable content wrapper -->
+      <div class="flex-1 overflow-y-auto flex flex-col">
+      
+      <!-- MAIN CONSTRUCTOR PANEL -->
+      <template v-if="!activeSegment">
+        <div class="p-6 flex-1 flex flex-col gap-3">
+          <h1 class="text-2xl font-black italic text-gray-900">Тролейбусний маршрут</h1>
+
+          <!-- Route ID -->
+          <div class="border border-gray-200 rounded-2xl p-4">
+            <div class="grid grid-cols-3 gap-3">
+              <div>
+                <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Номер маршруту</p>
+                <input v-model="routeNumber" type="text" maxlength="3"
+                  class="w-full text-center text-lg font-black bg-gray-50 border border-gray-200 rounded-xl py-2 text-gray-900 focus:outline-none focus:border-blue-400"/>
+              </div>
+              <div>
+                <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Буква маршруту</p>
+                <input v-model="routeLetter" type="text" maxlength="1"
+                  class="w-full text-center text-lg font-black bg-gray-50 border border-gray-200 rounded-xl py-2 text-gray-900 focus:outline-none focus:border-blue-400"/>
+              </div>
+              <div>
+                <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Колір маршруту</p>
+                <label class="block relative h-10 rounded-xl overflow-hidden border border-gray-200 cursor-pointer shadow-sm">
+                  <div class="absolute inset-0 rounded-xl" :style="{ backgroundColor: routeColor }"></div>
+                  <input type="color" v-model="routeColor" class="absolute inset-0 opacity-0 w-full h-full cursor-pointer"/>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Work modes -->
+          <div class="border border-gray-200 rounded-2xl p-4">
+            <div class="grid grid-cols-3 gap-2">
+              <div v-for="mode in workModes" :key="mode.id"
+                   @click="selectedWorkMode = mode.id"
+                   class="flex flex-col items-center gap-1.5 cursor-pointer">
+                <span class="text-xs font-semibold text-gray-600 text-center leading-tight">{{ mode.name }}</span>
+                <div class="w-12 h-9 rounded-xl border-2 flex items-center justify-center font-black text-base transition-all"
+                     :class="selectedWorkMode === mode.id
+                       ? 'bg-gray-100 border-gray-400 text-gray-900'
+                       : 'bg-gray-50 border-gray-200 text-gray-300'">
+                  {{ mode.value }}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Terminal stops -->
+          <div class="grid grid-cols-2 gap-3">
+            <div v-for="node in endNodes" :key="'pe-' + node.id"
+                 class="border border-gray-200 rounded-2xl p-3 flex flex-col gap-2">
+              <h3 class="text-sm font-bold text-gray-900 text-center mb-1 flex justify-center items-center gap-2">
+                {{ node.name }}
+                <button @click="removeTerminus(node)" class="text-red-400 hover:text-red-600 focus:outline-none" title="Видалити кінцеву">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+              </h3>
+              
+              <div class="mt-1">
+                <label class="text-[9px] font-bold text-gray-400 uppercase block mb-1">Прив'язка до бази</label>
+                <StopSelector 
+                  v-model="node.realId" 
+                  :stops="availableStops" 
+                  @create="name => createNewStopForNode(node, name)"
+                  @update:modelValue="id => assignRealStopToNode(node, id)"
+                />
+              </div>
+
+              <!-- Depot / Lunch info -->
+              <div class="flex items-center justify-between text-xs mt-1">
+                <span v-if="getStopType(node.realId) === 'depo'" class="px-2 py-0.5 bg-yellow-100 text-yellow-700 font-bold rounded-md text-[9px] uppercase tracking-wide">ДЕПО</span>
+                <span v-else-if="getStopType(node.realId) === 'end'" class="px-2 py-0.5 bg-purple-100 text-purple-700 font-bold rounded-md text-[9px] uppercase tracking-wide">КІНЦЕВА</span>
+                <span v-else class="px-2 py-0.5 bg-gray-100 text-gray-500 font-bold rounded-md text-[9px] uppercase tracking-wide">ЗВИЧАЙНА</span>
+                
+                <label class="flex items-center gap-1 cursor-pointer hover:bg-gray-50 px-1 py-0.5 rounded transition-colors">
+                  <input type="checkbox" v-model="node.canLunch" class="w-3 h-3 text-blue-500 rounded border-gray-300"/>
+                  <span class="text-[9px] font-bold text-gray-600 uppercase tracking-wide mt-0.5">Обід</span>
+                </label>
+              </div>
+
+              <div class="mt-1 bg-gray-50 border border-gray-100 p-2 rounded-xl">
+                <label class="text-[9px] font-bold text-gray-400 uppercase block mb-1 text-center">Час відпочинку (хв)</label>
+                <div class="flex items-center justify-center gap-1.5 text-xs">
+                  <input v-model.number="node.waitMin" type="number" min="0"
+                    class="w-10 text-center border border-gray-200 rounded-lg py-1 font-black text-gray-800 bg-white focus:outline-none focus:border-blue-400 shadow-sm" title="Мінімум"/>
+                  <span class="text-gray-400 font-bold">–</span>
+                  <input v-model.number="node.waitMax" type="number" min="0"
+                    class="w-10 text-center border border-gray-200 rounded-lg py-1 font-black text-gray-800 bg-white focus:outline-none focus:border-blue-400 shadow-sm" title="Максимум"/>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div v-if="nodes.filter(n => !n.isTerminus).length > 0" class="mt-0">
+            <select @change="makeTerminus($event.target.value); $event.target.value=''" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-2 py-2 text-xs font-semibold text-gray-700 focus:outline-none focus:border-blue-400">
+              <option value="">+ Зробити контрольну кінцевою</option>
+              <option v-for="n in nodes.filter(n => !n.isTerminus)" :key="n.id" :value="n.id">
+                {{ n.name }}
+              </option>
+            </select>
+          </div>
+
+          <!-- Time range -->
+          <div class="border border-gray-200 rounded-2xl p-4">
+            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2.5">Часовий діапазон</p>
+            <div class="flex items-center gap-2 mb-2">
+              <div class="flex-1">
+                <label class="text-[10px] text-gray-400 mb-0.5 block">Від</label>
+                <input type="time" :value="fmtTime(timeStart)"
+                  @change="e => { const [h,m]=e.target.value.split(':'); timeStart = +h*60 + +m; }"
+                  class="w-full border border-gray-200 rounded-xl px-2 py-1.5 text-sm font-bold text-gray-800 bg-gray-50 focus:outline-none focus:border-blue-400"/>
+              </div>
+              <span class="text-gray-300 mt-4">—</span>
+              <div class="flex-1">
+                <label class="text-[10px] text-gray-400 mb-0.5 block">До</label>
+                <input type="time" :value="fmtTime(timeEnd)"
+                  @change="e => { const [h,m]=e.target.value.split(':'); timeEnd = +h*60 + +m; }"
+                  class="w-full border border-gray-200 rounded-xl px-2 py-1.5 text-sm font-bold text-gray-800 bg-gray-50 focus:outline-none focus:border-blue-400"/>
+              </div>
+            </div>
+            <div class="flex gap-1 flex-wrap">
+              <button v-for="d in [-60,-15,15,60]" :key="d"
+                @click="shiftTime(d)"
+                class="text-[10px] font-semibold px-2 py-0.5 rounded-full border border-gray-200 text-gray-500 hover:bg-gray-100 transition-colors">
+                {{ d > 0 ? '+' : '' }}{{ d }}хв
+              </button>
+            </div>
+          </div>
+
+          <!-- Segments -->
+          <div class="border border-gray-200 rounded-2xl p-4">
+            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-3">Ділянки маршруту</p>
+            <div v-for="segItem in allSegmentsList" :key="'ps-' + segItem.id"
+                 class="mb-2.5 pb-2.5 border-b border-gray-100 last:border-0 last:mb-0 last:pb-0">
+              <div class="flex items-center justify-between mb-1.5">
+                <span class="text-xs font-bold truncate mr-2 flex items-center gap-1.5"
+                      :class="segItem.isBranch ? 'text-purple-700' : 'text-gray-700'">
+                  <span v-if="segItem.isBranch" class="px-1.5 py-0.5 text-[8px] font-black uppercase rounded bg-purple-100 text-purple-700 shrink-0">Гілка</span>
+                  {{ segItem.name }}
+                </span>
+                <button v-if="!segItem.isBranch" @click="router.push({ query: { ...route.query, segmentId: segItem.id } })"
+                  class="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full border border-blue-200 text-blue-500 hover:bg-blue-50 transition-colors">
+                  Налаштувати
+                </button>
+              </div>
+              <div class="grid grid-cols-3 gap-1.5">
+                <div class="bg-gray-50 rounded-xl p-2 text-center border border-gray-100">
+                  <div class="text-gray-400 text-[9px] mb-0.5 uppercase tracking-wider">Час хв</div>
+                  <div class="font-black text-sm text-gray-800">{{ segItem.travelTime }}</div>
+                </div>
+                <div class="bg-gray-50 rounded-xl p-2 text-center border border-gray-100">
+                  <div class="text-gray-400 text-[9px] mb-0.5 uppercase tracking-wider">Інт. від</div>
+                  <div class="font-black text-sm text-gray-800">{{ segItem.interval }}</div>
+                </div>
+                <div class="bg-gray-50 rounded-xl p-2 text-center border border-gray-100">
+                  <div class="text-gray-400 text-[9px] mb-0.5 uppercase tracking-wider">Інт. до</div>
+                  <div class="font-black text-sm text-gray-800">{{ segItem.intervalMax }}</div>
+                </div>
+              </div>
+              <p class="text-[10px] text-gray-400 mt-1.5">
+                Зупинок: <b class="text-gray-600">{{ segItem.stops ? segItem.stops.length : 0 }}</b>
+              </p>
+            </div>
+          </div>
+
+          <!-- Branches -->
+          <div v-if="branches.length" class="border border-gray-200 rounded-2xl p-4">
+            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Розгалуження</p>
+            <div v-for="(br, bIdx) in branches" :key="'pbr-' + br.id"
+                 class="flex items-center justify-between py-1.5 border-b border-gray-100 last:border-0 text-sm">
+              <span class="font-semibold text-gray-700">{{ br.name }}</span>
+              <button @click="branches.splice(bIdx, 1)"
+                class="text-red-300 hover:text-red-500 transition-colors text-xs">✕</button>
+            </div>
+          </div>
+
+          <!-- Summary -->
+          <div class="border border-gray-200 rounded-2xl p-3">
+            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider text-center mb-2">Оборот</p>
+            <div class="flex items-center justify-between gap-2">
+              <div class="flex items-center gap-1 text-xs text-gray-700 font-medium flex-wrap">
+                <span>{{ topNode?.name }}</span>
+                <svg class="w-3 h-3 text-gray-400 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M12.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-2.293-2.293a1 1 0 010-1.414z" clip-rule="evenodd"/>
+                </svg>
+                <span>{{ bottomNode?.name }}</span>
+                <svg class="w-3 h-3 text-gray-400 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M12.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-2.293-2.293a1 1 0 010-1.414z" clip-rule="evenodd"/>
+                </svg>
+                <span>{{ topNode?.name }}</span>
+              </div>
+              <div class="flex items-center gap-2 text-xs font-bold text-gray-700 shrink-0">
+                <span class="flex items-center gap-0.5">
+                  <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0"/>
+                  </svg>
+                  {{ totalStops }}
+                </span>
+                <span class="flex items-center gap-0.5">
+                  <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                  </svg>
+                  {{ totalTime }} хв
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="border-t border-gray-200 p-5 flex gap-3 bg-white shrink-0">
+          <button @click="router.push('/base/route')"
+            class="flex-1 py-3 rounded-xl font-bold text-gray-600 bg-white border border-gray-200 hover:bg-gray-50 transition-colors text-sm">
+            Скасувати
+          </button>
+          <button class="flex-1 py-3 rounded-xl font-bold text-white hover:opacity-90 transition-opacity text-sm shadow-md"
+            :style="{ backgroundColor: routeColor }">
+            Зберегти маршрут
+          </button>
+        </div>
+      </template>
+
+      <!-- SEGMENT EDITOR PANEL -->
+      <template v-else>
+        <div class="p-6 flex-1 flex flex-col gap-5 bg-gray-50">
+          
+          <button @click="closeSegmentEditor"
+            class="self-start text-xs font-bold text-gray-500 hover:text-gray-900 flex items-center gap-1 transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+            Назад до маршруту
+          </button>
+
+          <h2 class="text-xl font-black text-gray-900">{{ getSegmentName(activeSegment) }}</h2>
+
+          <!-- Time & Intervals -->
+          <div class="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
+            <h3 class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">Параметри ділянки</h3>
+            
+            <div class="grid grid-cols-3 gap-3 mb-3">
+              <div>
+                <label class="text-[10px] font-semibold text-gray-500 block mb-1">Час в дорозі</label>
+                <div class="relative">
+                  <input v-model.number="activeSegment.travelTime" type="number" min="1"
+                    class="w-full bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 text-sm font-bold text-gray-800 focus:outline-none focus:border-blue-400 pr-6"/>
+                  <span class="absolute right-2 top-1.5 text-xs font-bold text-gray-400">хв</span>
+                </div>
+              </div>
+              <div>
+                <label class="text-[10px] font-semibold text-gray-500 block mb-1">Інтервал від</label>
+                <input v-model="activeSegment.interval" type="text"
+                  class="w-full bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 text-sm font-bold text-gray-800 focus:outline-none focus:border-blue-400"/>
+              </div>
+              <div>
+                <label class="text-[10px] font-semibold text-gray-500 block mb-1">Інтервал до</label>
+                <input v-model="activeSegment.intervalMax" type="text"
+                  class="w-full bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 text-sm font-bold text-gray-800 focus:outline-none focus:border-blue-400"/>
+              </div>
+            </div>
+          </div>
+
+          <!-- Stops List -->
+          <div class="flex-1 flex flex-col min-h-0 bg-white border border-gray-200 rounded-2xl shadow-sm">
+            <div class="p-4 border-b border-gray-100 flex items-center justify-between">
+              <h3 class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Зупинки на ділянці</h3>
+              <span class="text-xs font-bold bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{{ activeSegment.stops.length }}</span>
+            </div>
+            
+            <div class="p-2 overflow-y-auto flex-1">
+              <div v-if="activeSegment.stops.length === 0" class="p-4 text-center text-gray-400 text-sm font-medium">
+                Немає зупинок. Додайте їх на схемі.
+              </div>
+              <div v-for="(stop, sIdx) in activeSegment.stops" :key="stop.id"
+                   class="mb-2 p-3 bg-gray-50 border border-gray-100 rounded-xl group relative">
+                
+                <div class="flex items-center justify-between mb-2">
+                  <div class="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                    <span class="w-4 h-4 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-[9px]">{{ sIdx + 1 }}</span>
+                    {{ stop.name }}
+                  </div>
+                  <button @click="removeStopFromSeg(activeSegment, sIdx)"
+                          class="text-gray-400 hover:text-red-500 transition-colors p-1" title="Видалити зупинку">
+                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                  </button>
+                </div>
+
+                <div class="mt-2">
+                  <label class="text-[9px] font-bold text-gray-400 uppercase block mb-1">Прив'язка до бази</label>
+                  <StopSelector 
+                    v-model="stop.realId" 
+                    :stops="availableStops" 
+                    @create="name => createNewStopForSeg(stop, name)"
+                    @update:modelValue="id => assignRealStop(stop, id)"
+                  />
+                  <div v-if="stop.realId && getStopDirection(stop.realId)" class="mt-1.5 flex items-start gap-1">
+                    <svg class="w-3 h-3 text-gray-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                    <span class="text-[9px] text-gray-500 font-semibold uppercase leading-tight">{{ getStopDirection(stop.realId) }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </template>
+      </div>
+    </div>
+
+  </div>
+</template>
+
+<style scoped>
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 9px; }
+</style>

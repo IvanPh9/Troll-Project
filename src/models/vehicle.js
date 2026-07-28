@@ -46,6 +46,30 @@ export class Vehicle {
     }
 }
 
+// Конкретний клас для автобуса
+export class Bus extends Vehicle {
+    constructor(vehicleId, boardNumber, model) {
+        super(vehicleId, boardNumber, model, 'bus');
+    }
+}
+
+// Конкретний клас для тролейбуса
+export class Trolleybus extends Vehicle {
+    constructor(vehicleId, boardNumber, model, hasBatteryAutonomous = false) {
+        super(vehicleId, boardNumber, model, 'trolleybus');
+        this.hasBatteryAutonomous = !!hasBatteryAutonomous;
+    }
+
+    validate() {
+        const result = super.validate();
+        if (this.hasBatteryAutonomous !== undefined && typeof this.hasBatteryAutonomous !== 'boolean') {
+            result.errors.hasBatteryAutonomous = "Поле 'Автономний хід від батареї' має бути булевим значенням";
+            result.isValid = false;
+        }
+        return result;
+    }
+}
+
 // Успадковуємо базовий клас для активного транспортного засобу (на рейсі)
 export class ActiveVehicle extends Vehicle {
     constructor(vehicleId, boardNumber, model, type = 'bus', currentRoute = null) {
@@ -56,4 +80,27 @@ export class ActiveVehicle extends Vehicle {
         this.currentRoute = currentRoute;
         this.isActive = true;
     }
+
+    static [Symbol.hasInstance](instance) {
+        return instance && instance.isActive === true;
+    }
 }
+
+// Активний автобус
+export class ActiveBus extends Bus {
+    constructor(vehicleId, boardNumber, model, currentRoute = null) {
+        super(vehicleId, boardNumber, model);
+        this.currentRoute = currentRoute;
+        this.isActive = true;
+    }
+}
+
+// Активний тролейбус
+export class ActiveTrolleybus extends Trolleybus {
+    constructor(vehicleId, boardNumber, model, hasBatteryAutonomous = false, currentRoute = null) {
+        super(vehicleId, boardNumber, model, hasBatteryAutonomous);
+        this.currentRoute = currentRoute;
+        this.isActive = true;
+    }
+}
+

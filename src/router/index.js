@@ -17,34 +17,45 @@ const router = createRouter({
             children: [
                 {
                     path: 'drivers',
-                    component: () => import('../components/DriversList.vue')
+                    component: () => import('@/components/drivers/DriversList.vue')
                 },
                 {
                     path: 'drivers/add',
                     name: 'driver-add',
-                    component: () => import('../components/AddDriver.vue')
+                    component: () => import('@/components/drivers/AddDriver.vue')
                 },
                 {
                     path: 'drivers/:id',
                     name: 'driver-profile',
-                    component: () => import('../components/DriverProfile.vue'),
+                    component: () => import('@/components/drivers/DriverProfile.vue'),
                     props: true
                 },
                 {
                     path: 'stops',
-                    component: () => import('../components/StopsList.vue')
+                    component: () => import('@/components/stops/StopsList.vue')
+                },
+                {
+                    path: 'stops/:name',
+                    name: 'stop-detail',
+                    component: () => import('@/components/stops/StopDetail.vue'),
+                    props: true
                 },
                 {
                     path: 'route',
-                    component: () => import('../components/RouteList.vue')
+                    component: () => import('@/components/routes/RouteList.vue')
+                },
+                {
+                    path: 'route/create',
+                    name: 'route-create',
+                    component: () => import('@/modules/route-constructor/RouteConstructor.vue')
                 },
                 {
                     path: 'vehicle',
-                    component: () => import('../components/VehicleList.vue')
+                    component: () => import('@/components/vehicles/VehicleList.vue')
                 },
                 {
                     path: 'wmode',
-                    component: () => import('../components/WorkingModelList.vue')
+                    component: () => import('@/components/routes/WorkingModelList.vue')
                 }
             ]
         }
