@@ -38,15 +38,16 @@ export class OvalLayout {
 
     // Calculate initial right node Ys
     this._rightNodeY = this._computeRightYs(this._rightSegments);
-    let botY = this._rightNodeY[this._rightNodeY.length - 1] + 160; // 160 = 5 * 32px
+    let botPadding = this.editable !== false ? 160 : 0; // completely remove space when not editable
+    let botY = this._rightNodeY[this._rightNodeY.length - 1] + botPadding;
     
     // Calculate left node Ys based on current botY
     this._leftNodeY = this._computeLeftYs(this._leftSegments, botY);
     
-    // If the top left node goes above topY (0), the left rail needs more space.
-    // We must push botY down by the deficit, and recalculate.
-    if (this._leftNodeY[0] < this.topY) {
-      const deficit = this.topY - this._leftNodeY[0];
+    // If the top left node gets too close to topY, the left rail needs more space.
+    let topPadding = this.editable !== false ? 160 : 0;
+    if (this._leftNodeY[0] < this.topY + topPadding) {
+      const deficit = (this.topY + topPadding) - this._leftNodeY[0];
       botY += deficit;
       this._leftNodeY = this._computeLeftYs(this._leftSegments, botY);
     }
@@ -106,7 +107,7 @@ export class OvalLayout {
   }
 
   _segH(seg, isLastSeg, segIdx, ignoreFarBranches = false) {
-    const base = 64; // fixed base for 32px top + 32px bot paddings
+    const base = this.editable !== false ? 64 : 32; // smaller base spacing when not editable
     const branchPadding = this.getBranchPadding(segIdx, ignoreFarBranches);
     return base + ((seg && seg.stops) ? seg.stops.length : 0) * this.STOP_H + branchPadding;
   }
@@ -224,8 +225,9 @@ export class OvalLayout {
     });
 
     if (isLeft) {
-      // Pill is at 32, Stops start at 32 + 32
-      return top + 32 + 32 * (n - stIdx);
+      const base = this.editable !== false ? 32 : 0;
+      // Pill is at 32 (if editable), Stops start after it
+      return top + base + 32 * (n - stIdx);
     } else {
       // Stops start at 32
       return top + branchOffset + 32 + 32 * stIdx;
@@ -247,28 +249,34 @@ export class OvalLayout {
     // Pill is placed at exactly 32px from the top (before the highest stop)
     return top + 32; 
   }
+  getRightIntervalY(seg, top, bot, isLastSeg, segIdx) {
+    if (seg.stops && seg.stops.length > 0) {
+      return (top + bot) / 2;
+    }
+    if (this.editable === false) {
+      if (isLastSeg) return top + 24; // shift down towards bottom curve
+      if (segIdx === 0) return top + 8; // shift up towards top curve
+    }
+    return top + 16;
+  }
+
+  getLeftIntervalY(seg, top, bot, isLastSeg, segIdx) {
+    if (seg.stops && seg.stops.length > 0) {
+      return (top + bot) / 2;
+    }
+    if (this.editable === false) {
+      const leftCount = this._leftSegments ? this._leftSegments.length : this.segments.filter(s => s.side === 'left').length;
+      if (segIdx === leftCount - 1) return top + 24; // shift down towards bottom curve
+      if (segIdx === 0) return top + 8; // shift up towards top curve
+    }
+    return top + 16;
+  }
+
   getLeftAddBranchY(seg, top, bot, isLastSeg, segIdx) {
     return this.getLeftAddStopY(seg, top, bot, isLastSeg, segIdx);
   }
 
-  getLeftIntervalY(seg, top, bot, isLastSeg, segIdx) {
-    const n = seg.stops ? seg.stops.length : 0;
-    const mid = top + 32 + n * 16;
-    if (n % 2 === 0) {
-      return mid - 16;
-    }
-    return mid;
-  }
 
-  getRightIntervalY(seg, top, bot, isLastSeg, segIdx) {
-    const pad = this.getBranchPadding(segIdx);
-    const n = seg.stops ? seg.stops.length : 0;
-    const mid = top + pad + 32 + n * 16;
-    if (n % 2 === 0) {
-      return mid - 16;
-    }
-    return mid;
-  }
 
   getRightAddNodeY(bot) {
     return bot - 32;

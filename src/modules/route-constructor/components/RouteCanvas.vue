@@ -99,6 +99,20 @@
               class="anim-line"
               :style="{ strokeDasharray: '5000', strokeDashoffset: (5000 - layout.botY) }" />
 
+        <!-- Full Right Rail Background Gradient -->
+        <rect :x="layout.rightX - 50"
+              :y="layout.topY"
+              width="50"
+              :height="layout.botY - layout.topY"
+              fill="url(#interval-fade-right)" />
+
+        <!-- Full Left Rail Background Gradient -->
+        <rect :x="layout.leftX"
+              :y="layout.topY"
+              width="50"
+              :height="layout.botY - layout.topY"
+              fill="url(#interval-fade-left)" />
+
         <!-- Removed inline SVG defs -->
 
 
@@ -109,13 +123,54 @@
 
         <!-- Animated Triangle Direction Arrows -->
 
+        <!-- ── "+ Додати ділянку" BUTTON ON RIGHT RAIL ── -->
+        <g v-if="editable && !localBranchMode">
+          <!-- Grey gradient extension line towards right button -->
+          <line class="anim-line"
+                :x1="layout.rightX" :y1="(layout.rightNodeY[layout.rightNodeY.length - 1] || 0)"
+                :x2="layout.rightX" :y2="rightAddNodeY"
+                stroke="url(#rail-grey-down)" :stroke-width="layout.RAIL_W" stroke-linecap="round" />
+          <g class="anim-row"
+             :style="{ transform: 'translate(0px, ' + rightAddNodeY + 'px)' }"
+             style="cursor:pointer;" @click.stop="$emit('add-node', 'right')">
+            <circle :cx="layout.rightX" cy="0" r="14"
+                    fill="#ffffff" stroke="#9ca3af" stroke-width="2.5"/>
+            <g :transform="'translate(' + (layout.rightX - 5.3) + ', -5.3)'" fill="#6b7280" style="pointer-events:none;">
+              <path transform="scale(0.7)" d="M1.00195 8.36719H6.36328V13.7285C6.36328 14.2734 6.81152 14.7305 7.36523 14.7305C7.91895 14.7305 8.36719 14.2734 8.36719 13.7285V8.36719H13.7285C14.2734 8.36719 14.7305 7.91895 14.7305 7.36523C14.7305 6.81152 14.2734 6.36328 13.7285 6.36328H8.36719V1.00195C8.36719 0.457031 7.91895 0 7.36523 0C6.81152 0 6.36328 0.457031 6.36328 1.00195V6.36328H1.00195C0.457031 6.36328 0 6.81152 0 7.36523C0 7.91895 0.457031 8.36719 1.00195 8.36719Z" />
+            </g>
+            <text :x="layout.rightX + 22" y="4"
+                  font-size="12" font-weight="700" fill="#6b7280" style="pointer-events:none;">Додати ділянку</text>
+          </g>
+        </g>
+        <!-- ── "+ Додати ділянку" BUTTON ON LEFT RAIL ── -->
+        <g v-if="editable && !localBranchMode">
+          <!-- Grey gradient extension line towards left button -->
+          <line class="anim-line"
+                :x1="layout.leftX" :y1="(layout.leftNodeY[0] || 0)"
+                :x2="layout.leftX" :y2="leftAddNodeY"
+                stroke="url(#rail-grey-up)" :stroke-width="layout.RAIL_W" stroke-linecap="round" />
+          <g class="anim-row"
+             :style="{ transform: 'translate(0px, ' + leftAddNodeY + 'px)' }"
+             style="cursor:pointer;" @click.stop="$emit('add-node', 'left')">
+            <circle :cx="layout.leftX" cy="0" r="14"
+                    fill="#ffffff" stroke="#9ca3af" stroke-width="2.5"/>
+            <g :transform="'translate(' + (layout.leftX - 5.3) + ', -5.3)'" fill="#6b7280" style="pointer-events:none;">
+              <path transform="scale(0.7)" d="M1.00195 8.36719H6.36328V13.7285C6.36328 14.2734 6.81152 14.7305 7.36523 14.7305C7.91895 14.7305 8.36719 14.2734 8.36719 13.7285V8.36719H13.7285C14.2734 8.36719 14.7305 7.91895 14.7305 7.36523C14.7305 6.81152 14.2734 6.36328 13.7285 6.36328H8.36719V1.00195C8.36719 0.457031 7.91895 0 7.36523 0C6.81152 0 6.36328 0.457031 6.36328 1.00195V6.36328H1.00195C0.457031 6.36328 0 6.81152 0 7.36523C0 7.91895 0.457031 8.36719 1.00195 8.36719Z" />
+            </g>
+            <text :x="layout.leftX - 22" y="4"
+                  font-size="12" font-weight="700" fill="#6b7280" text-anchor="end" style="pointer-events:none;">Додати ділянку</text>
+          </g>
+        </g>
 
         <!-- Top Semicircular Cap (Left to Right arc bowing UP) -->
         <path :d="'M ' + layout.leftX + ' ' + layout.topY + ' A ' + layout.CAP_R + ' ' + layout.CAP_R + ' 0 0 1 ' + layout.rightX + ' ' + layout.topY"
               fill="none" :stroke="color" :stroke-width="layout.RAIL_W" stroke-linejoin="round" stroke-linecap="round"/>
 
-        <!-- Top Cap Background Gradient (Right quadrant only) -->
-        <path :d="'M ' + layout.rightX + ' ' + layout.topY + ' A ' + layout.CAP_R + ' ' + layout.CAP_R + ' 0 0 0 0 ' + (layout.topY - layout.CAP_R) + ' L 0 ' + (layout.topY - (layout.CAP_R - 50)) + ' A ' + (layout.CAP_R - 50) + ' ' + (layout.CAP_R - 50) + ' 0 0 1 ' + (layout.rightX - 50) + ' ' + layout.topY + ' Z'"
+        <!-- Top Cap Background Gradient (Full upper half ring for clean mode) -->
+        <path v-if="!editable" :d="'M ' + layout.leftX + ' ' + layout.topY + ' A ' + layout.CAP_R + ' ' + layout.CAP_R + ' 0 0 1 ' + layout.rightX + ' ' + layout.topY + ' L ' + (layout.rightX - 50) + ' ' + layout.topY + ' A ' + (layout.CAP_R - 50) + ' ' + (layout.CAP_R - 50) + ' 0 0 0 ' + (layout.leftX + 50) + ' ' + layout.topY + ' Z'"
+              fill="url(#cap-glow-top)" />
+        <!-- Top Cap Background Gradient (Right quadrant only for edit mode) -->
+        <path v-else :d="'M ' + layout.rightX + ' ' + layout.topY + ' A ' + layout.CAP_R + ' ' + layout.CAP_R + ' 0 0 0 0 ' + (layout.topY - layout.CAP_R) + ' L 0 ' + (layout.topY - (layout.CAP_R - 50)) + ' A ' + (layout.CAP_R - 50) + ' ' + (layout.CAP_R - 50) + ' 0 0 1 ' + (layout.rightX - 50) + ' ' + layout.topY + ' Z'"
               fill="url(#cap-glow-top)" />
 
         <!-- Top Arc Arrows -->
@@ -152,8 +207,11 @@
           <path :d="'M ' + layout.leftX + ' 0 A ' + layout.CAP_R + ' ' + layout.CAP_R + ' 0 0 0 ' + layout.rightX + ' 0'"
                 fill="none" :stroke="color" :stroke-width="layout.RAIL_W" stroke-linejoin="round" stroke-linecap="round"/>
 
-          <!-- Bottom Cap Background Gradient (Left quadrant only) -->
-          <path :d="'M ' + layout.leftX + ' 0 A ' + layout.CAP_R + ' ' + layout.CAP_R + ' 0 0 0 0 ' + layout.CAP_R + ' L 0 ' + (layout.CAP_R - 50) + ' A ' + (layout.CAP_R - 50) + ' ' + (layout.CAP_R - 50) + ' 0 0 1 ' + (layout.leftX + 50) + ' 0 Z'"
+          <!-- Bottom Cap Background Gradient (Full lower half ring for clean mode) -->
+          <path v-if="!editable" :d="'M ' + layout.rightX + ' 0 A ' + layout.CAP_R + ' ' + layout.CAP_R + ' 0 0 1 ' + layout.leftX + ' 0 L ' + (layout.leftX + 50) + ' 0 A ' + (layout.CAP_R - 50) + ' ' + (layout.CAP_R - 50) + ' 0 0 0 ' + (layout.rightX - 50) + ' 0 Z'"
+                fill="url(#cap-glow-bot)" />
+          <!-- Bottom Cap Background Gradient (Left quadrant only for edit mode) -->
+          <path v-else :d="'M ' + layout.leftX + ' 0 A ' + layout.CAP_R + ' ' + layout.CAP_R + ' 0 0 0 0 ' + layout.CAP_R + ' L 0 ' + (layout.CAP_R - 50) + ' A ' + (layout.CAP_R - 50) + ' ' + (layout.CAP_R - 50) + ' 0 0 1 ' + (layout.leftX + 50) + ' 0 Z'"
                 fill="url(#cap-glow-bot)" />
 
           <!-- Bottom Arc Arrows -->
@@ -187,12 +245,7 @@
 
         <!-- ── RIGHT RAIL & SEGMENTS ── -->
         <template v-for="(seg, i) in layout.rightSegments" :key="'rseg-' + seg.id">
-          <!-- Segment Background Gradient -->
-          <rect :x="layout.rightX - 50"
-                :y="layout.rightNodeY[i]"
-                width="50"
-                :height="layout.rightNodeY[i+1] - layout.rightNodeY[i]"
-                fill="url(#interval-fade-right)" />
+
 
           <!-- Interval Badge (Inside Oval, e.g. 20-25хв) -->
           <g class="anim-row" :style="{ transform: 'translate(0px, ' + layout.getRightIntervalY(seg, layout.rightNodeY[i], layout.rightNodeY[i+1], i === layout.rightSegments.length - 1, segments.indexOf(seg)) + 'px)' }" style="pointer-events:none;">
@@ -234,7 +287,7 @@
             <!-- Left Half: Add Stop -->
             <g style="cursor:pointer;" @click.stop="$emit('add-stop', segments.indexOf(seg), 'right')">
               <rect :x="layout.rightX + 18" y="-14" width="32" height="28" fill="transparent" rx="14"/>
-              <g :transform="'translate(' + (layout.rightX + 28) + ', -7)'" fill="#4b5563">
+              <g :transform="'translate(' + (layout.rightX + 30.5) + ', -7)'" fill="#4b5563">
                 <path transform="scale(0.5)" d="M5.78869 27.4289C6.5345 27.4289 7.07691 26.9543 7.07691 26.0616V17.3943C7.07691 17.0101 7.25772 16.7841 7.56282 16.7841C7.86793 16.7841 8.06003 17.0101 8.06003 17.3943V26.0616C8.06003 26.9543 8.60244 27.4289 9.34826 27.4289C10.0828 27.4289 10.6252 26.9543 10.6252 26.0616V11.4165C10.6252 11.1114 10.7721 10.9306 11.0207 10.9306C11.258 10.9306 11.4162 11.1114 11.4162 11.4165V17.4282C11.4162 18.2305 11.8908 18.6825 12.5688 18.6825C13.2468 18.6825 13.7101 18.2305 13.7101 17.4282V11.5521C13.7101 7.9699 11.6874 7.04328 7.67583 7.04328H5.93559C5.15588 7.04328 4.76037 6.93027 4.13885 6.47827L2.64723 5.42735L2.37602 1.20106C2.31952 0.387446 1.79971 -0.0419624 1.1217 0.00323846C0.432382 0.0371391 -0.0422274 0.534349 0.00297345 1.33666L0.274179 5.52905C0.33068 6.44437 0.692287 6.97548 1.2573 7.39358L3.96935 9.37112C4.36486 9.65363 4.50046 10.0039 4.50046 10.4559V26.0616C4.50046 26.9543 5.05417 27.4289 5.78869 27.4289ZM7.67583 5.91325C9.17875 5.91325 10.3879 4.67023 10.3879 3.2125C10.3879 1.70957 9.17875 0.489148 7.67583 0.489148C6.16159 0.489148 4.97507 1.70957 4.97507 3.2125C4.97507 4.69283 6.16159 5.91325 7.67583 5.91325Z"/>
               </g>
             </g>
@@ -245,8 +298,8 @@
             <!-- Right Half: Add Control Node -->
             <g v-if="!hasBranchForSeg(segments.indexOf(seg))" style="cursor:pointer;" @click.stop="$emit('add-node', 'right', segments.indexOf(seg))">
               <rect :x="layout.rightX + 50" y="-14" width="32" height="28" fill="transparent" rx="14"/>
-              <g :transform="'translate(' + (layout.rightX + 56.5) + ', -9.5)'" fill="#4b5563">
-                <path d="M9.08789 18.1758C14.0713 18.1758 18.1846 14.0625 18.1846 9.08789C18.1846 4.11328 14.0625 0 9.0791 0C4.10449 0 0 4.11328 0 9.08789C0 14.0625 4.11328 18.1758 9.08789 18.1758ZM9.08789 16.3652C5.05371 16.3652 1.82812 13.1221 1.82812 9.08789C1.82812 5.05371 5.05371 1.81934 9.0791 1.81934C13.1133 1.81934 16.3564 5.05371 16.3652 9.08789C16.374 13.1221 13.1221 16.3652 9.08789 16.3652ZM5.84473 9.92285H8.25293V12.3398C8.25293 12.8232 8.5957 13.166 9.07031 13.166C9.5625 13.166 9.91406 12.8232 9.91406 12.3398V9.92285H12.3311C12.8145 9.92285 13.166 9.58008 13.166 9.09668C13.166 8.61328 12.8232 8.26172 12.3311 8.26172H9.91406V5.84473C9.91406 5.35254 9.5625 5.00977 9.07031 5.00977C8.5957 5.00977 8.25293 5.35254 8.25293 5.84473V8.26172H5.84473C5.34375 8.26172 5.00098 8.61328 5.00098 9.09668C5.00098 9.58008 5.35254 9.92285 5.84473 9.92285Z" />
+              <g :transform="'translate(' + (layout.rightX + 60.7) + ', -5.3)'" fill="#4b5563">
+                <path transform="scale(0.7)" d="M1.00195 8.36719H6.36328V13.7285C6.36328 14.2734 6.81152 14.7305 7.36523 14.7305C7.91895 14.7305 8.36719 14.2734 8.36719 13.7285V8.36719H13.7285C14.2734 8.36719 14.7305 7.91895 14.7305 7.36523C14.7305 6.81152 14.2734 6.36328 13.7285 6.36328H8.36719V1.00195C8.36719 0.457031 7.91895 0 7.36523 0C6.81152 0 6.36328 0.457031 6.36328 1.00195V6.36328H1.00195C0.457031 6.36328 0 6.81152 0 7.36523C0 7.91895 0.457031 8.36719 1.00195 8.36719Z" />
               </g>
             </g>
           </g>
@@ -340,16 +393,19 @@
               </g>
             </template>
           </template>
+
+          <!-- Direction Arrow (Gradient Stripe Style) -->
+          <g v-if="i > 0 && (editable || (seg.stops && seg.stops.length >= 2))"
+             :transform="'translate(' + layout.rightX + ', ' + (layout.rightNodeY[i] + 25) + ') rotate(90)'"
+             style="pointer-events:none;">
+            <polygon points="0,-4.5 42,-4.5 50,0 42,4.5 0,4.5" fill="url(#arrow-fade)" />
+            <polygon points="0,-4.5 8,0 0,4.5" :fill="color" />
+          </g>
         </template>
 
         <!-- ── LEFT RAIL & SEGMENTS ── -->
         <template v-for="(seg, i) in layout.leftSegments" :key="'lseg-' + seg.id">
-          <!-- Segment Background Gradient -->
-          <rect :x="layout.leftX"
-                :y="layout.leftNodeY[i]"
-                width="50"
-                :height="layout.leftNodeY[i+1] - layout.leftNodeY[i]"
-                fill="url(#interval-fade-left)" />
+
 
           <!-- Interval Badge (Inside Oval, e.g. 20-25хв) -->
           <g class="anim-row" :style="{ transform: 'translate(0px, ' + layout.getLeftIntervalY(seg, layout.leftNodeY[i], layout.leftNodeY[i+1], i === layout.leftSegments.length - 1, segments.indexOf(seg)) + 'px)' }" style="pointer-events:none;">
@@ -391,8 +447,8 @@
             <!-- Far Left Half: Add Control Node -->
             <g v-if="!hasBranchForSeg(segments.indexOf(seg))" style="cursor:pointer;" @click.stop="$emit('add-node', 'left', segments.indexOf(seg))">
               <rect :x="layout.leftX - 82" y="-14" width="32" height="28" fill="transparent" rx="14"/>
-              <g :transform="'translate(' + (layout.leftX - 75.5) + ', -9.5)'" fill="#4b5563">
-                <path d="M9.08789 18.1758C14.0713 18.1758 18.1846 14.0625 18.1846 9.08789C18.1846 4.11328 14.0625 0 9.0791 0C4.10449 0 0 4.11328 0 9.08789C0 14.0625 4.11328 18.1758 9.08789 18.1758ZM9.08789 16.3652C5.05371 16.3652 1.82812 13.1221 1.82812 9.08789C1.82812 5.05371 5.05371 1.81934 9.0791 1.81934C13.1133 1.81934 16.3564 5.05371 16.3652 9.08789C16.374 13.1221 13.1221 16.3652 9.08789 16.3652ZM5.84473 9.92285H8.25293V12.3398C8.25293 12.8232 8.5957 13.166 9.07031 13.166C9.5625 13.166 9.91406 12.8232 9.91406 12.3398V9.92285H12.3311C12.8145 9.92285 13.166 9.58008 13.166 9.09668C13.166 8.61328 12.8232 8.26172 12.3311 8.26172H9.91406V5.84473C9.91406 5.35254 9.5625 5.00977 9.07031 5.00977C8.5957 5.00977 8.25293 5.35254 8.25293 5.84473V8.26172H5.84473C5.34375 8.26172 5.00098 8.61328 5.00098 9.09668C5.00098 9.58008 5.35254 9.92285 5.84473 9.92285Z" />
+              <g :transform="'translate(' + (layout.leftX - 71.3) + ', -5.3)'" fill="#4b5563">
+                <path transform="scale(0.7)" d="M1.00195 8.36719H6.36328V13.7285C6.36328 14.2734 6.81152 14.7305 7.36523 14.7305C7.91895 14.7305 8.36719 14.2734 8.36719 13.7285V8.36719H13.7285C14.2734 8.36719 14.7305 7.91895 14.7305 7.36523C14.7305 6.81152 14.2734 6.36328 13.7285 6.36328H8.36719V1.00195C8.36719 0.457031 7.91895 0 7.36523 0C6.81152 0 6.36328 0.457031 6.36328 1.00195V6.36328H1.00195C0.457031 6.36328 0 6.81152 0 7.36523C0 7.91895 0.457031 8.36719 1.00195 8.36719Z" />
               </g>
             </g>
 
@@ -402,7 +458,7 @@
             <!-- Right Half (closer to rail): Add Stop -->
             <g style="cursor:pointer;" @click.stop="$emit('add-stop', segments.indexOf(seg), 'left')">
               <rect :x="layout.leftX - 50" y="-14" width="32" height="28" fill="transparent" rx="14"/>
-              <g :transform="'translate(' + (layout.leftX - 40) + ', -7) scale(-1, 1)'" fill="#4b5563">
+              <g :transform="'translate(' + (layout.leftX - 30.5) + ', -7) scale(-1, 1)'" fill="#4b5563">
                 <path transform="scale(0.5)" d="M5.78869 27.4289C6.5345 27.4289 7.07691 26.9543 7.07691 26.0616V17.3943C7.07691 17.0101 7.25772 16.7841 7.56282 16.7841C7.86793 16.7841 8.06003 17.0101 8.06003 17.3943V26.0616C8.06003 26.9543 8.60244 27.4289 9.34826 27.4289C10.0828 27.4289 10.6252 26.9543 10.6252 26.0616V11.4165C10.6252 11.1114 10.7721 10.9306 11.0207 10.9306C11.258 10.9306 11.4162 11.1114 11.4162 11.4165V17.4282C11.4162 18.2305 11.8908 18.6825 12.5688 18.6825C13.2468 18.6825 13.7101 18.2305 13.7101 17.4282V11.5521C13.7101 7.9699 11.6874 7.04328 7.67583 7.04328H5.93559C5.15588 7.04328 4.76037 6.93027 4.13885 6.47827L2.64723 5.42735L2.37602 1.20106C2.31952 0.387446 1.79971 -0.0419624 1.1217 0.00323846C0.432382 0.0371391 -0.0422274 0.534349 0.00297345 1.33666L0.274179 5.52905C0.33068 6.44437 0.692287 6.97548 1.2573 7.39358L3.96935 9.37112C4.36486 9.65363 4.50046 10.0039 4.50046 10.4559V26.0616C4.50046 26.9543 5.05417 27.4289 5.78869 27.4289ZM7.67583 5.91325C9.17875 5.91325 10.3879 4.67023 10.3879 3.2125C10.3879 1.70957 9.17875 0.489148 7.67583 0.489148C6.16159 0.489148 4.97507 1.70957 4.97507 3.2125C4.97507 4.69283 6.16159 5.91325 7.67583 5.91325Z"/>
               </g>
             </g>
@@ -497,24 +553,20 @@
               </g>
             </template>
           </template>
+
+          <!-- Direction Arrow (Gradient Stripe Style) -->
+          <g v-if="i !== layout.leftSegments.length - 1 && (editable || (seg.stops && seg.stops.length >= 2))"
+             :transform="'translate(' + layout.leftX + ', ' + (layout.leftNodeY[i+1] - 25) + ') rotate(-90)'"
+             style="pointer-events:none;">
+            <polygon points="0,-4.5 42,-4.5 50,0 42,4.5 0,4.5" fill="url(#arrow-fade)" />
+            <polygon points="0,-4.5 8,0 0,4.5" :fill="color" />
+          </g>
         </template>
 
         <!-- ── MAIN CONTROL NODES & INWARD CONNECTING LINES ── -->
         <g v-for="(node, idx) in controlNodes" :key="'cnode-' + node.id" class="anim-row"
            :style="{ transform: 'translate(0px, ' + getNodeY(node.id) + 'px)' }">
-          <!-- Direction Arrow for Control Node (Gradient Stripe Style) -->
-          <g v-if="node.side === 'left'" :transform="'translate(' + layout.leftX + ', -25) rotate(-90)'">
-            <!-- White body with gradient -->
-            <polygon points="0,-4.5 42,-4.5 50,0 42,4.5 0,4.5" fill="url(#arrow-fade)" />
-            <!-- Route-colored cutout at the base -->
-            <polygon points="0,-4.5 8,0 0,4.5" :fill="color" />
-          </g>
-          <g v-else :transform="'translate(' + layout.rightX + ', 25) rotate(90)'">
-            <!-- White body with gradient -->
-            <polygon points="0,-4.5 42,-4.5 50,0 42,4.5 0,4.5" fill="url(#arrow-fade)" />
-            <!-- Route-colored cutout at the base -->
-            <polygon points="0,-4.5 8,0 0,4.5" :fill="color" />
-          </g>
+
 
           <!-- Horizontal light blue line extending INWARDS -->
           <line v-if="node.side === 'left'"
@@ -554,42 +606,6 @@
           </g>
         </g>
 
-        <!-- ── "+ Додати ділянку" BUTTON ON RIGHT RAIL ── -->
-        <g v-if="editable && !localBranchMode">
-          <!-- Grey gradient extension line towards right button -->
-          <line class="anim-line"
-                :x1="layout.rightX" :y1="(layout.rightNodeY[layout.rightNodeY.length - 1] || 0)"
-                :x2="layout.rightX" :y2="rightAddNodeY"
-                stroke="url(#rail-grey-down)" :stroke-width="layout.RAIL_W" stroke-linecap="round" />
-          <g class="anim-row"
-             :style="{ transform: 'translate(0px, ' + rightAddNodeY + 'px)' }"
-             style="cursor:pointer;" @click.stop="$emit('add-node', 'right')">
-            <circle :cx="layout.rightX" cy="0" r="14"
-                    fill="#ffffff" stroke="#9ca3af" stroke-width="2.5"/>
-            <text :x="layout.rightX" y="5"
-                  font-size="16" font-weight="900" fill="#6b7280" text-anchor="middle" style="pointer-events:none;">+</text>
-            <text :x="layout.rightX + 22" y="4"
-                  font-size="12" font-weight="700" fill="#6b7280" style="pointer-events:none;">Додати ділянку</text>
-          </g>
-        </g>
-        <!-- ── "+ Додати ділянку" BUTTON ON LEFT RAIL ── -->
-        <g v-if="editable && !localBranchMode">
-          <!-- Grey gradient extension line towards left button -->
-          <line class="anim-line"
-                :x1="layout.leftX" :y1="(layout.leftNodeY[0] || 0)"
-                :x2="layout.leftX" :y2="leftAddNodeY"
-                stroke="url(#rail-grey-up)" :stroke-width="layout.RAIL_W" stroke-linecap="round" />
-          <g class="anim-row"
-             :style="{ transform: 'translate(0px, ' + leftAddNodeY + 'px)' }"
-             style="cursor:pointer;" @click.stop="$emit('add-node', 'left')">
-            <circle :cx="layout.leftX" cy="0" r="14"
-                    fill="#ffffff" stroke="#9ca3af" stroke-width="2.5"/>
-            <text :x="layout.leftX" y="5"
-                  font-size="16" font-weight="900" fill="#6b7280" text-anchor="middle" style="pointer-events:none;">+</text>
-            <text :x="layout.leftX - 22" y="4"
-                  font-size="12" font-weight="700" fill="#6b7280" text-anchor="end" style="pointer-events:none;">Додати ділянку</text>
-          </g>
-        </g>
       </g>
     </svg>
   </div>
@@ -718,15 +734,15 @@ const lastNode = computed(() => nodes.value.filter(n => !n.side)[1] || nodes.val
 const controlNodes = computed(() => nodes.value.filter(n => n.side === 'left' || n.side === 'right'));
 
 const rightAddNodeY = computed(() => {
-  if (!layout.value || !layout.value.rightNodeY?.length) return 55;
+  if (!layout.value || !layout.value.rightNodeY?.length) return 80;
   const lastY = layout.value.rightNodeY[layout.value.rightNodeY.length - 1];
-  return lastY !== undefined ? lastY + 55 : 55;
+  return lastY !== undefined ? lastY + 80 : 80;
 });
 
 const leftAddNodeY = computed(() => {
-  if (!layout.value || !layout.value.leftNodeY?.length) return 55;
+  if (!layout.value || !layout.value.leftNodeY?.length) return 80;
   const topY = layout.value.leftNodeY[0];
-  return topY !== undefined ? Math.max(25, topY - 55) : 55;
+  return topY !== undefined ? Math.max(40, topY - 80) : 80;
 });
 
 const nodeTravelTimes = computed(() => {
@@ -1023,7 +1039,7 @@ function getLeftBranchFinishedPath(br, i) {
 
 const layout = computed(() => {
   if (!nodes.value.length) return null;
-  return new OvalLayout(nodes.value, segments.value, branches.value);
+  return new OvalLayout(nodes.value, segments.value, branches.value, { editable: props.editable });
 });
 
 function branchesForSeg(sIdx) {
