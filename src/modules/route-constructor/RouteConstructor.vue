@@ -112,17 +112,47 @@ function removeStop(sIdx, stIdx) {
   segments.value[sIdx].stops.splice(stIdx, 1);
 }
 
-function addControlNode(side = 'right') {
+function addControlNode(side = 'right', explicitSegIdx = -1) {
   const newId = Date.now();
   const ctrlCount = nodes.value.filter(n => n.type === 'control').length;
-  let insertNodeIdx = nodes.value.length - 1; // Default for right side (before end node)
-  if (side === 'left') {
-    // Find the first left node to insert before it
-    const firstLeftIdx = nodes.value.findIndex(n => n.side === 'left');
-    if (firstLeftIdx !== -1) {
-      insertNodeIdx = firstLeftIdx;
+
+  let targetSegIdx = explicitSegIdx;
+  
+  if (targetSegIdx === -1) {
+    if (side === 'left') {
+      for (let i = 0; i < segments.value.length; i++) {
+        if (segments.value[i].side === side || !segments.value[i].side) {
+          targetSegIdx = i;
+          break;
+        }
+      }
     } else {
-      insertNodeIdx = nodes.value.length - 1; // fallback
+      for (let i = segments.value.length - 1; i >= 0; i--) {
+        if (segments.value[i].side === side || !segments.value[i].side) {
+          targetSegIdx = i;
+          break;
+        }
+      }
+    }
+  }
+
+  let segsOfSideBefore = 0;
+  for (let i = 0; i < targetSegIdx; i++) {
+    if (segments.value[i].side === side || !segments.value[i].side) {
+      segsOfSideBefore++;
+    }
+  }
+
+  let nodesOfSideSeen = 0;
+  let insertNodeIdx = nodes.value.length - 1;
+  for (let i = 0; i < nodes.value.length; i++) {
+    const n = nodes.value[i];
+    if (n.side === side || n.isTerminus) {
+      nodesOfSideSeen++;
+      if (nodesOfSideSeen === segsOfSideBefore + 1) {
+        insertNodeIdx = i + 1;
+        break;
+      }
     }
   }
 
@@ -132,38 +162,17 @@ function addControlNode(side = 'right') {
     side: side
   });
 
-  // Find the segment to split (last for right, first for left)
-  let targetSegIdx = -1;
-  if (side === 'left') {
-    for (let i = 0; i < segments.value.length; i++) {
-      if (segments.value[i].side === side || !segments.value[i].side) {
-        targetSegIdx = i;
-        break;
-      }
-    }
-  } else {
-    for (let i = segments.value.length - 1; i >= 0; i--) {
-      if (segments.value[i].side === side || !segments.value[i].side) {
-        targetSegIdx = i;
-        break;
-      }
-    }
-  }
-
   if (targetSegIdx !== -1) {
     const old = segments.value[targetSegIdx];
     const half = Math.floor(old.travelTime / 2);
     const oldSide = old.side || side;
     
     if (side === 'left') {
-      // For left side, array is top-to-bottom, but vehicle travels bottom-to-top.
-      // Top segment (Segment A) should be empty, bottom segment (Segment B) gets old stops.
       segments.value.splice(targetSegIdx, 1,
         { id: newId + 1, travelTime: half,                  interval: old.interval, intervalMax: old.intervalMax, stops: [], side: oldSide },
         { id: newId + 2, travelTime: old.travelTime - half, interval: old.interval, intervalMax: old.intervalMax, stops: [...old.stops], side: oldSide }
       );
     } else {
-      // For right side, Segment A gets old stops, Segment B gets empty stops.
       segments.value.splice(targetSegIdx, 1,
         { id: newId + 1, travelTime: half,                  interval: old.interval, intervalMax: old.intervalMax, stops: [...old.stops], side: oldSide },
         { id: newId + 2, travelTime: old.travelTime - half, interval: old.interval, intervalMax: old.intervalMax, stops: [], side: oldSide }
@@ -222,9 +231,43 @@ function addBranch(sIdx, parentBranchId = null, parentNodeId = null) {
   });
 }
 
+const activeBranchToConfig = ref(null);
+
+function configBranch(br) {
+  activeBranchToConfig.value = br;
+}
+
+function configNormalMerge() {
+  if (activeBranchToConfig.value) {
+    activeBranchToConfig.value.targetType = 'current';
+    activeBranchToConfig.value.targetNodeId = null;
+    activeBranchToConfig.value.mergeConfigured = 'solid';
+  }
+  activeBranchToConfig.value = null;
+}
+
+function configAddMainLoopSegment() {
+  if (activeBranchToConfig.value) {
+    activeBranchToConfig.value.targetType = 'current';
+    activeBranchToConfig.value.targetNodeId = null;
+    activeBranchToConfig.value.mergeConfigured = 'add_inside';
+    activeBranchToConfig.value.finished = true;
+  }
+  activeBranchToConfig.value = null;
+}
+
+function configMakeControlNode() {
+  if (activeBranchToConfig.value) {
+    finishBranch(activeBranchToConfig.value.id);
+  }
+  activeBranchToConfig.value = null;
+}
+
 const finishBranchTarget = ref(null);
 const selectedFinishType = ref('current');
 const selectedFinishNodeId = ref(null);
+
+
 
 const currentFinishingBranch = computed(() => branches.value.find(b => b.id === finishBranchTarget.value));
 const isFinishingSubBranch = computed(() => !!currentFinishingBranch.value?.parentBranchId);
@@ -236,14 +279,15 @@ const parentBranchForFinishing = computed(() => {
 
 const finishingNodeOptions = computed(() => {
   if (isFinishingSubBranch.value) {
-    // Control nodes of the parent branch only!
+    // Control nodes of the parent branch only
     return parentBranchForFinishing.value?.nodes || [];
   } else {
-    // Control nodes of the same side of the main loop
+    // Control nodes AND terminus nodes of the same rail side
     const brSegIdx = currentFinishingBranch.value?.segIdx ?? 0;
     const seg = segments.value[brSegIdx] || segments.value[0];
     const side = seg?.side || 'right';
-    return nodes.value.filter(n => n.type !== 'end' && (n.side === side || !n.side));
+    // Include all nodes of this side (control + terminus), but not top/bottom end nodes without a side
+    return nodes.value.filter(n => n.side === side || n.isTerminus);
   }
 });
 
@@ -272,13 +316,17 @@ function addBranchNode(brId) {
       id: 'br_node_' + Date.now(),
       name: 'Контрольна ' + (br.nodes.length + 1)
     });
+    if (!br.sections) br.sections = [{ stops: [] }];
+    while (br.sections.length <= br.nodes.length) {
+      br.sections.push({ stops: [] });
+    }
   }
 }
 
 function addBranchStop(brId, sectionIdx = 0) {
   const br = branches.value.find(b => b.id === brId);
   if (br) {
-    if (!br.sections) br.sections = [];
+    if (!br.sections) br.sections = [{ stops: [] }];
     while (br.sections.length <= sectionIdx) {
       br.sections.push({ stops: [] });
     }
@@ -286,6 +334,50 @@ function addBranchStop(brId, sectionIdx = 0) {
       id: 'br_stop_' + Date.now(),
       name: 'Зупинка ' + (br.sections[sectionIdx].stops.length + 1)
     });
+  }
+}
+
+function editBranchStop(brId, sectionIdx, stopIdx) {
+  const br = branches.value.find(b => b.id === brId);
+  if (br && br.sections && br.sections[sectionIdx] && br.sections[sectionIdx].stops[stopIdx]) {
+    const currentStop = br.sections[sectionIdx].stops[stopIdx];
+    const newName = prompt('Назва зупинки на розгалудженні (залиште порожнім для видалення):', currentStop.name);
+    if (newName !== null) {
+      if (newName.trim() === '') {
+        br.sections[sectionIdx].stops.splice(stopIdx, 1);
+      } else {
+        currentStop.name = newName.trim();
+      }
+    }
+  }
+}
+
+function editBranchNode(brId, bNIdx) {
+  const br = branches.value.find(b => b.id === brId);
+  if (br && br.nodes && br.nodes[bNIdx]) {
+    const currentNode = br.nodes[bNIdx];
+    const newName = prompt('Назва контрольної точки на розгалудженні (залиште порожнім для видалення):', currentNode.name);
+    if (newName !== null) {
+      if (newName.trim() === '') {
+        removeBranchNode(brId, bNIdx);
+      } else {
+        currentNode.name = newName.trim();
+      }
+    }
+  }
+}
+
+function removeBranchNode(brId, bNIdx) {
+  const br = branches.value.find(b => b.id === brId);
+  if (br && br.nodes && br.nodes[bNIdx]) {
+    br.nodes.splice(bNIdx, 1);
+    if (br.sections && br.sections[bNIdx + 1]) {
+      const movedStops = br.sections[bNIdx + 1].stops || [];
+      if (br.sections[bNIdx]) {
+        br.sections[bNIdx].stops.push(...movedStops);
+      }
+      br.sections.splice(bNIdx + 1, 1);
+    }
   }
 }
 /* ─────────── Edit overlays ─────────── */
@@ -504,58 +596,32 @@ const allSegmentsList = computed(() => {
   branches.value.forEach((br, bIdx) => {
     const brName = br.name || `Розгалудження ${bIdx + 1}`;
     const brNodes = br.nodes || [];
+    const sectionCount = Math.max(brNodes.length + 1, 1);
     
-    if (brNodes.length === 0) {
-      list.push({
-        id: 'br-seg-' + br.id + '-0',
-        name: `${brName} → Кінець розгалудження`,
-        travelTime: 5,
-        interval: '15',
-        intervalMax: '20',
-        stops: [],
-        isBranch: true,
-        branchId: br.id,
-        rawSeg: null
-      });
-    } else {
-      // First section: Branch -> Node 1
-      list.push({
-        id: 'br-seg-' + br.id + '-0',
-        name: `${brName} → ${brNodes[0].name}`,
-        travelTime: 5,
-        interval: '15',
-        intervalMax: '20',
-        stops: [],
-        isBranch: true,
-        branchId: br.id,
-        rawSeg: null
-      });
-      
-      // Intermediate sections: Node i -> Node i+1
-      for (let i = 0; i < brNodes.length - 1; i++) {
-        list.push({
-          id: 'br-seg-' + br.id + '-' + (i + 1),
-          name: `${brNodes[i].name} → ${brNodes[i+1].name}`,
-          travelTime: 5,
-          interval: '15',
-          intervalMax: '20',
-          stops: [],
-          isBranch: true,
-          branchId: br.id,
-          rawSeg: null
-        });
+    for (let si = 0; si < sectionCount; si++) {
+      let secName = '';
+      if (brNodes.length === 0) {
+        secName = `${brName} → Кінець розгалудження`;
+      } else if (si === 0) {
+        secName = `${brName} → ${brNodes[0].name}`;
+      } else if (si === brNodes.length) {
+        secName = `${brNodes[si - 1].name} → Кінець розгалудження`;
+      } else {
+        secName = `${brNodes[si - 1].name} → ${brNodes[si].name}`;
       }
       
-      // Last section: Node last -> End
+      const secStops = (br.sections && br.sections[si] && br.sections[si].stops) ? br.sections[si].stops : [];
+      
       list.push({
-        id: 'br-seg-' + br.id + '-' + brNodes.length,
-        name: `${brNodes[brNodes.length - 1].name} → Кінець розгалудження`,
+        id: 'br-seg-' + br.id + '-' + si,
+        name: secName,
         travelTime: 5,
         interval: '15',
         intervalMax: '20',
-        stops: [],
+        stops: secStops,
         isBranch: true,
         branchId: br.id,
+        sectionIdx: si,
         rawSeg: null
       });
     }
@@ -587,16 +653,33 @@ const canvasRef = ref(null);
         @edit-node="   node => editNode = node"
         @add-stop="    (sIdx, side) => addStop(sIdx, side)"
         @remove-stop=" (sIdx, stIdx) => removeStop(sIdx, stIdx)"
-        @add-node="    (side) => addControlNode(side)"
         @remove-node=" idx => removeNode(idx)"
         @add-branch="(sIdx) => addBranch(sIdx)"
         @add-sub-branch="(pId, pNodeId) => addBranch(null, pId, pNodeId)"
         @finish-branch="(brId) => finishBranch(brId)"
-        @add-branch-node="(brId) => addBranchNode(brId)"
-        @add-branch-stop="(brId) => addBranchStop(brId)"
+        @config-branch="(br) => configBranch(br)"
+        @add-node="(side, segIdx) => addControlNode(side, segIdx)"
+        @add-branch-node="addBranchNode"
+        @add-branch-stop="(brId, si) => addBranchStop(brId, si)"
+        @edit-branch-stop="editBranchStop"
+        @edit-branch-node="editBranchNode"
         @toggle-branch-mode="isBranchMode = !isBranchMode"
         :is-animation-paused="isAnimationPaused"
       />
+
+      <!-- Branch Config Modal -->
+      <Teleport to="body">
+        <div v-if="activeBranchToConfig" class="fixed inset-0 z-[150] flex items-center justify-center bg-gray-900/40 backdrop-blur-sm" @click="activeBranchToConfig = null">
+          <div class="bg-white rounded-2xl shadow-xl w-80 p-5" @click.stop>
+            <h3 class="text-lg font-bold text-gray-900 mb-4 text-center">Налаштування з'єднання</h3>
+            <div class="flex flex-col gap-2">
+              <button @click="configAddMainLoopSegment" class="text-left px-4 py-3 rounded-xl hover:bg-gray-100 text-sm font-semibold text-gray-700 transition leading-tight">Додати ділянку/зупинки на основному колі</button>
+              <button @click="configNormalMerge" class="text-left px-4 py-3 rounded-xl hover:bg-gray-100 text-sm font-semibold text-gray-700 transition leading-tight">Приєднати без зупинок (стандартне злиття)</button>
+              <button @click="configMakeControlNode" class="text-left px-4 py-3 rounded-xl hover:bg-blue-50 hover:text-blue-700 text-sm font-semibold text-blue-600 transition border-2 border-transparent hover:border-blue-200 leading-tight">Зробити точку з'єднання контрольною</button>
+            </div>
+          </div>
+        </div>
+      </Teleport>
 
       <!-- ── Top-left Menu (Figma Style) ── -->
       <div class="absolute top-5 left-6 z-50 flex flex-col gap-3 pointer-events-auto select-none">

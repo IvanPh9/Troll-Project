@@ -14,10 +14,10 @@
  */
 
 export const OVAL_DEFAULTS = {
-  RAIL_HALF : 100,   // half-width between rail centers
+  RAIL_HALF : 96,   // half-width between rail centers (3 * 32px grid)
   RAIL_W    :  9,   // stroke-width of rails and caps
-  CAP_R     : 100,   // radius of semicircle caps
-  SEG_BASE  : 90,   // minimum height of a segment
+  CAP_R     : 96,   // radius of semicircle caps (matches RAIL_HALF)
+  SEG_BASE  : 64,   // minimum height of a segment
   STOP_H    :  32,  // additional height per stop
   END_R     :  15,  // radius of terminus node circle
   CTRL_R    :  10,  // radius of control node circle
@@ -36,21 +36,22 @@ export class OvalLayout {
     this._rightSegments = this.segments.filter(s => !s.side || s.side === 'right');
     this._leftSegments = this.segments.filter(s => !s.side || s.side === 'left');
 
+    // Calculate initial right node Ys
     this._rightNodeY = this._computeRightYs(this._rightSegments);
-
-    const rightTotalH = this._rightNodeY[this._rightNodeY.length - 1] ?? 0;
-
-    let leftTotalH = 0;
-    for (let i = 0; i < this._leftSegments.length; i++) {
-      const isLast = (i === this._leftSegments.length - 1);
-      const actualSegIdx = this.segments.findIndex(s => s.id === this._leftSegments[i].id);
-      leftTotalH += this._segH(this._leftSegments[i], isLast, actualSegIdx);
+    let botY = this._rightNodeY[this._rightNodeY.length - 1] + 160; // 160 = 5 * 32px
+    
+    // Calculate left node Ys based on current botY
+    this._leftNodeY = this._computeLeftYs(this._leftSegments, botY);
+    
+    // If the top left node goes above topY (0), the left rail needs more space.
+    // We must push botY down by the deficit, and recalculate.
+    if (this._leftNodeY[0] < this.topY) {
+      const deficit = this.topY - this._leftNodeY[0];
+      botY += deficit;
+      this._leftNodeY = this._computeLeftYs(this._leftSegments, botY);
     }
-
-    this._botY = Math.max(rightTotalH + 60, leftTotalH + 60, this.SEG_BASE);
-
-    // Left rail accumulates UPWARDS from botY towards topY (0)
-    this._leftNodeY = this._computeLeftYs(this._leftSegments, this._botY);
+    
+    this._botY = botY;
   }
 
   get rightX() { return  this.RAIL_HALF; }
@@ -62,20 +63,51 @@ export class OvalLayout {
   get rightSegments() { return this._rightSegments; }
   get leftSegments()  { return this._leftSegments; }
 
-  _segH(seg, isLast, segIdx) {
-    const base = isLast ? this.SEG_BASE + 50 : this.SEG_BASE;
+  getBranchPadding(segIdx, ignoreFarBranches = false) {
     const segBranches = (segIdx !== undefined) ? this.branches.filter(b => b.segIdx === segIdx) : [];
     let branchPadding = 0;
     segBranches.forEach(b => {
-      const nodeCount = b.nodes ? b.nodes.length : 0;
+      if (ignoreFarBranches && b.finished && b.targetType && b.targetType !== 'current') {
+        return;
+      }
       const sections = b.sections || [];
-      let bStopsCount = (b.stops ? b.stops.length : 0);
-      sections.forEach(s => { bStopsCount += (s.stops ? s.stops.length : 0); });
+      const nodeCount = (b.nodes || []).length;
+      const sectionCount = Math.max(nodeCount + 1, 1);
+      const isType1 = b.mergeConfigured === 'add_inside';
+      const isType2 = b.finished && b.targetType && b.targetType !== 'current';
+      const dx = (isType1 || isType2) ? 190 : 45;
+      let branchHeight = 48 + 25; // curve height + endpoint space
+      for (let si = 0; si < sectionCount; si++) {
+        const stopsInSection = (sections[si]?.stops || []).length;
+        branchHeight += (stopsInSection > 0 ? (35 + stopsInSection * 32) : 25);
+      }
+      if (nodeCount > 0) branchHeight += nodeCount * 28;
+      
+      // Ensure finished branches have a minimum vertical length
+      if (b.finished) {
+        branchHeight = Math.max(135, branchHeight);
+      }
+
+      // Sub-branches inside this branch
       const subBrs = this.branches.filter(sb => sb.parentBranchId === b.id);
-      const subBrPadding = subBrs.reduce((acc, sb) => acc + 220 + (sb.nodes ? sb.nodes.length : 0) * 140, 0);
-      const branchHeight = 140 * (nodeCount + 1) + bStopsCount * 30 + subBrPadding;
-      branchPadding += b.finished ? branchHeight : (branchHeight + 160);
+      const subBrPadding = subBrs.reduce((acc, sb) => {
+        const sbSections = sb.sections || [];
+        const sbNodeCount = (sb.nodes || []).length;
+        const sbSectionCount = Math.max(sbNodeCount + 1, 1);
+        let sbH = sb.finished ? 100 : 50;
+        for (let si = 0; si < sbSectionCount; si++) {
+          sbH += ((sbSections[si]?.stops || []).length) * 32 + 25;
+        }
+        return acc + sbH;
+      }, 0);
+      branchPadding += branchHeight + subBrPadding;
     });
+    return branchPadding;
+  }
+
+  _segH(seg, isLastSeg, segIdx, ignoreFarBranches = false) {
+    const base = 64; // fixed base for 32px top + 32px bot paddings
+    const branchPadding = this.getBranchPadding(segIdx, ignoreFarBranches);
     return base + ((seg && seg.stops) ? seg.stops.length : 0) * this.STOP_H + branchPadding;
   }
 
@@ -84,7 +116,42 @@ export class OvalLayout {
     for (let i = 0; i < segs.length; i++) {
       const isLast = (i === segs.length - 1);
       const actualSegIdx = this.segments.findIndex(s => s.id === segs[i].id);
-      ys.push(ys[i] + this._segH(segs[i], isLast, actualSegIdx));
+      ys.push(ys[i] + this._segH(segs[i], isLast, actualSegIdx, true));
+    }
+    
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (let b of this.branches) {
+        if (b.side !== 'right') continue;
+        const sIdx = b.segIdx ?? 0;
+        
+        let brH = 48 + 25;
+        const sectionCount = Math.max((b.nodes || []).length + 1, 1);
+        for (let si = 0; si < sectionCount; si++) {
+           const stopsCount = (b.sections?.[si]?.stops || []).length;
+           brH += (stopsCount > 0 ? (35 + stopsCount * 32) : 25);
+        }
+        const nodeCount = (b.nodes || []).length;
+        if (nodeCount > 0) brH += nodeCount * 28;
+        if (b.finished) brH = Math.max(135, brH);
+        
+        let targetIdx = -1;
+        if (b.finished && b.targetType === 'node' && b.targetNodeId) {
+           targetIdx = this.nodes.findIndex(n => n.id === b.targetNodeId);
+        } else if (b.finished && b.targetType === 'bottom_arc') {
+           targetIdx = ys.length - 1;
+        }
+        
+        if (targetIdx !== -1 && targetIdx > sIdx) {
+           const currentH = ys[targetIdx] - ys[sIdx];
+           if (currentH < brH) {
+             const diff = brH - currentH;
+             for(let k = targetIdx; k < ys.length; k++) ys[k] += diff;
+             changed = true;
+           }
+        }
+      }
     }
     return ys;
   }
@@ -96,8 +163,42 @@ export class OvalLayout {
     for (let i = n - 1; i >= 0; i--) {
       const isLast = (i === n - 1);
       const actualSegIdx = this.segments.findIndex(s => s.id === segs[i].id);
-      const h = this._segH(segs[i], isLast, actualSegIdx);
-      ys[i] = ys[i + 1] - h;
+      ys[i] = ys[i + 1] - this._segH(segs[i], isLast, actualSegIdx, true);
+    }
+    
+    let changed = true;
+    while(changed) {
+      changed = false;
+      for (let b of this.branches) {
+        if (b.side !== 'left') continue;
+        const sIdx = b.segIdx ?? 0;
+        
+        let brH = 48 + 25; 
+        const sectionCount = Math.max((b.nodes || []).length + 1, 1);
+        for (let si = 0; si < sectionCount; si++) {
+           const stopsCount = (b.sections?.[si]?.stops || []).length;
+           brH += (stopsCount > 0 ? (35 + stopsCount * 32) : 25);
+        }
+        const nodeCount = (b.nodes || []).length;
+        if (nodeCount > 0) brH += nodeCount * 28;
+        if (b.finished) brH = Math.max(135, brH);
+        
+        let targetIdx = -1;
+        if (b.finished && b.targetType === 'node' && b.targetNodeId) {
+           targetIdx = this.nodes.findIndex(n => n.id === b.targetNodeId);
+        } else if (b.finished && b.targetType === 'bottom_arc') {
+           targetIdx = 0;
+        }
+        
+        if (targetIdx !== -1 && targetIdx <= sIdx) {
+           const currentH = ys[sIdx + 1] - ys[targetIdx];
+           if (currentH < brH) {
+             const diff = brH - currentH;
+             for (let k = sIdx + 1; k <= n; k++) ys[k] += diff;
+             changed = true;
+           }
+        }
+      }
     }
     return ys;
   }
@@ -122,57 +223,58 @@ export class OvalLayout {
       branchOffset += b.finished ? (55 + nodeCount * 40) : (200 + nodeCount * 80);
     });
 
-    let padTop = 45;
-    let padBot = isLastSeg ? 95 : 45;
-
     if (isLeft) {
-      // Left side branches are placed near bot, so add padding to padBot
-      padBot += branchOffset;
+      // Pill is at 32, Stops start at 32 + 32
+      return top + 32 + 32 * (n - stIdx);
     } else {
-      // Right side branches are placed near top, so add padding to padTop
-      padTop += branchOffset;
+      // Stops start at 32
+      return top + branchOffset + 32 + 32 * stIdx;
     }
-
-    const avail = Math.max(40, (bot - top) - padTop - padBot);
-    const step = avail / (n + 1);
-    return top + padTop + step * (stIdx + 1);
   }
 
   // Positioning Add Stop & Add Branch buttons
   getRightAddBranchY(seg, top, bot, isLastSeg) {
     return top + 36;
   }
-  getRightAddStopY(seg, top, bot, isLastSeg) {
+  getRightAddStopY(seg, top, bot, isLastSeg, segIdx) {
+    const pad = this.getBranchPadding(segIdx);
     const n = seg.stops ? seg.stops.length : 0;
-    if (n === 0) return top + 30; // smaller distance for empty segment
-    return top + 45 + (n - 1) * 32 + 45; // tightly packed after last stop
+    // Pill is placed exactly 32px after the last stop
+    return top + pad + 32 + 32 * n;
   }
 
-  getLeftAddStopY(seg, top, bot, isLastSeg) {
-    return top + 45; // Pushed down to avoid overlap with "+ Додати ділянку" (which is at top + 20)
+  getLeftAddStopY(seg, top, bot, isLastSeg, segIdx) {
+    // Pill is placed at exactly 32px from the top (before the highest stop)
+    return top + 32; 
   }
-  getLeftAddBranchY(seg, top, bot, isLastSeg) {
-    return top + 45;
+  getLeftAddBranchY(seg, top, bot, isLastSeg, segIdx) {
+    return this.getLeftAddStopY(seg, top, bot, isLastSeg, segIdx);
   }
 
-  getLeftIntervalY(seg, top, bot, isLastSeg) {
+  getLeftIntervalY(seg, top, bot, isLastSeg, segIdx) {
     const n = seg.stops ? seg.stops.length : 0;
-    const mid = (top + bot) / 2;
-    if (n % 2 !== 0) {
-      const padTop = 45;
-      const padBot = isLastSeg ? 95 : 45;
-      const avail = (bot - top) - padTop - padBot;
-      const step = avail / (n + 1);
-      return mid - step / 2;
+    const mid = top + 32 + n * 16;
+    if (n % 2 === 0) {
+      return mid - 16;
+    }
+    return mid;
+  }
+
+  getRightIntervalY(seg, top, bot, isLastSeg, segIdx) {
+    const pad = this.getBranchPadding(segIdx);
+    const n = seg.stops ? seg.stops.length : 0;
+    const mid = top + pad + 32 + n * 16;
+    if (n % 2 === 0) {
+      return mid - 16;
     }
     return mid;
   }
 
   getRightAddNodeY(bot) {
-    return bot - 30;
+    return bot - 32;
   }
   getLeftAddNodeY(bot) {
-    return bot - 30;
+    return bot - 32;
   }
 
   // Cap Paths
