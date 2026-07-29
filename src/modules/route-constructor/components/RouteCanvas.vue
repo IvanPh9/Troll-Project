@@ -100,14 +100,16 @@
               :style="{ strokeDasharray: '5000', strokeDashoffset: (5000 - layout.botY) }" />
 
         <!-- Full Right Rail Background Gradient -->
-        <rect :x="layout.rightX - 50"
+        <rect class="anim-rect"
+              :x="layout.rightX - 50"
               :y="layout.topY"
               width="50"
               :height="layout.botY - layout.topY"
               fill="url(#interval-fade-right)" />
 
         <!-- Full Left Rail Background Gradient -->
-        <rect :x="layout.leftX"
+        <rect class="anim-rect"
+              :x="layout.leftX"
               :y="layout.topY"
               width="50"
               :height="layout.botY - layout.topY"
@@ -124,7 +126,7 @@
         <!-- Animated Triangle Direction Arrows -->
 
         <!-- ── "+ Додати ділянку" BUTTON ON RIGHT RAIL ── -->
-        <g v-if="editable && !localBranchMode">
+        <g :style="{ opacity: (editable && !localBranchMode) ? 1 : 0, pointerEvents: (editable && !localBranchMode) ? 'auto' : 'none', transition: 'opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1)' }">
           <!-- Grey gradient extension line towards right button -->
           <line class="anim-line"
                 :x1="layout.rightX" :y1="(layout.rightNodeY[layout.rightNodeY.length - 1] || 0)"
@@ -143,7 +145,7 @@
           </g>
         </g>
         <!-- ── "+ Додати ділянку" BUTTON ON LEFT RAIL ── -->
-        <g v-if="editable && !localBranchMode">
+        <g :style="{ opacity: (editable && !localBranchMode) ? 1 : 0, pointerEvents: (editable && !localBranchMode) ? 'auto' : 'none', transition: 'opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1)' }">
           <!-- Grey gradient extension line towards left button -->
           <line class="anim-line"
                 :x1="layout.leftX" :y1="(layout.leftNodeY[0] || 0)"
@@ -167,11 +169,11 @@
               fill="none" :stroke="color" :stroke-width="layout.RAIL_W" stroke-linejoin="round" stroke-linecap="round"/>
 
         <!-- Top Cap Background Gradient (Full upper half ring for clean mode) -->
-        <path v-if="!editable" :d="'M ' + layout.leftX + ' ' + layout.topY + ' A ' + layout.CAP_R + ' ' + layout.CAP_R + ' 0 0 1 ' + layout.rightX + ' ' + layout.topY + ' L ' + (layout.rightX - 50) + ' ' + layout.topY + ' A ' + (layout.CAP_R - 50) + ' ' + (layout.CAP_R - 50) + ' 0 0 0 ' + (layout.leftX + 50) + ' ' + layout.topY + ' Z'"
-              fill="url(#cap-glow-top)" />
+        <path :d="'M ' + layout.leftX + ' ' + layout.topY + ' A ' + layout.CAP_R + ' ' + layout.CAP_R + ' 0 0 1 ' + layout.rightX + ' ' + layout.topY + ' L ' + (layout.rightX - 50) + ' ' + layout.topY + ' A ' + (layout.CAP_R - 50) + ' ' + (layout.CAP_R - 50) + ' 0 0 0 ' + (layout.leftX + 50) + ' ' + layout.topY + ' Z'"
+              fill="url(#cap-glow-top)" :style="{ opacity: !editable ? 1 : 0, transition: 'opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1)' }" />
         <!-- Top Cap Background Gradient (Right quadrant only for edit mode) -->
-        <path v-else :d="'M ' + layout.rightX + ' ' + layout.topY + ' A ' + layout.CAP_R + ' ' + layout.CAP_R + ' 0 0 0 0 ' + (layout.topY - layout.CAP_R) + ' L 0 ' + (layout.topY - (layout.CAP_R - 50)) + ' A ' + (layout.CAP_R - 50) + ' ' + (layout.CAP_R - 50) + ' 0 0 1 ' + (layout.rightX - 50) + ' ' + layout.topY + ' Z'"
-              fill="url(#cap-glow-top)" />
+        <path :d="'M ' + layout.rightX + ' ' + layout.topY + ' A ' + layout.CAP_R + ' ' + layout.CAP_R + ' 0 0 0 0 ' + (layout.topY - layout.CAP_R) + ' L 0 ' + (layout.topY - (layout.CAP_R - 50)) + ' A ' + (layout.CAP_R - 50) + ' ' + (layout.CAP_R - 50) + ' 0 0 1 ' + (layout.rightX - 50) + ' ' + layout.topY + ' Z'"
+              fill="url(#cap-glow-top)" :style="{ opacity: editable ? 1 : 0, transition: 'opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1)' }" />
 
         <!-- Top Arc Arrows -->
         <g v-if="arcArrows">
@@ -189,9 +191,9 @@
                   fill="#f5f5f5" :stroke="firstNode.isTerminus ? '#111827' : color" :stroke-width="firstNode.isTerminus ? 4 : 3.5"
                   :class="{ 'terminus-added': firstNode.isTerminus }" />
           <text :x="0" :y="layout.topY - layout.CAP_R - 16"
-                font-size="13" font-weight="800" fill="#111827" text-anchor="middle"
+                font-size="13" font-weight="700" fill="#111827" text-anchor="middle"
                 style="pointer-events:none;">
-            <tspan>{{ firstNode.isTerminus ? (firstNode.terminusStop || firstNode.name) : firstNode.name }} </tspan><tspan font-size="13" font-weight="800" font-style="italic" :fill="color">{{ nodeTravelTimes[firstNode.id] || 0 }} хв</tspan>
+            <tspan>{{ firstNode.isTerminus ? (firstNode.terminusStop || firstNode.name) : firstNode.name }} </tspan><tspan dx="8" font-size="13" font-weight="700" font-style="italic" :fill="color">{{ nodeTravelTimes[firstNode.id] || 0 }} хв</tspan>
           </text>
           <!-- Icons below top terminus circle -->
           <g v-if="firstNode.isTerminus" :transform="'translate(0, ' + (layout.topY - layout.CAP_R + 15) + ')'">
@@ -208,11 +210,11 @@
                 fill="none" :stroke="color" :stroke-width="layout.RAIL_W" stroke-linejoin="round" stroke-linecap="round"/>
 
           <!-- Bottom Cap Background Gradient (Full lower half ring for clean mode) -->
-          <path v-if="!editable" :d="'M ' + layout.rightX + ' 0 A ' + layout.CAP_R + ' ' + layout.CAP_R + ' 0 0 1 ' + layout.leftX + ' 0 L ' + (layout.leftX + 50) + ' 0 A ' + (layout.CAP_R - 50) + ' ' + (layout.CAP_R - 50) + ' 0 0 0 ' + (layout.rightX - 50) + ' 0 Z'"
-                fill="url(#cap-glow-bot)" />
+          <path :d="'M ' + layout.rightX + ' 0 A ' + layout.CAP_R + ' ' + layout.CAP_R + ' 0 0 1 ' + layout.leftX + ' 0 L ' + (layout.leftX + 50) + ' 0 A ' + (layout.CAP_R - 50) + ' ' + (layout.CAP_R - 50) + ' 0 0 0 ' + (layout.rightX - 50) + ' 0 Z'"
+                fill="url(#cap-glow-bot)" :style="{ opacity: !editable ? 1 : 0, transition: 'opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1)' }" />
           <!-- Bottom Cap Background Gradient (Left quadrant only for edit mode) -->
-          <path v-else :d="'M ' + layout.leftX + ' 0 A ' + layout.CAP_R + ' ' + layout.CAP_R + ' 0 0 0 0 ' + layout.CAP_R + ' L 0 ' + (layout.CAP_R - 50) + ' A ' + (layout.CAP_R - 50) + ' ' + (layout.CAP_R - 50) + ' 0 0 1 ' + (layout.leftX + 50) + ' 0 Z'"
-                fill="url(#cap-glow-bot)" />
+          <path :d="'M ' + layout.leftX + ' 0 A ' + layout.CAP_R + ' ' + layout.CAP_R + ' 0 0 0 0 ' + layout.CAP_R + ' L 0 ' + (layout.CAP_R - 50) + ' A ' + (layout.CAP_R - 50) + ' ' + (layout.CAP_R - 50) + ' 0 0 1 ' + (layout.leftX + 50) + ' 0 Z'"
+                fill="url(#cap-glow-bot)" :style="{ opacity: editable ? 1 : 0, transition: 'opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1)' }" />
 
           <!-- Bottom Arc Arrows -->
           <g v-if="arcArrows">
@@ -230,9 +232,9 @@
                     fill="#f5f5f5" :stroke="lastNode.isTerminus ? '#111827' : color" :stroke-width="lastNode.isTerminus ? 4 : 3.5"
                     :class="{ 'terminus-added': lastNode.isTerminus }" />
             <text :x="0" :y="layout.CAP_R + 24"
-                  font-size="13" font-weight="800" fill="#111827" text-anchor="middle"
+                  font-size="13" font-weight="700" fill="#111827" text-anchor="middle"
                   style="pointer-events:none;">
-              <tspan>{{ lastNode.isTerminus ? (lastNode.terminusStop || lastNode.name) : lastNode.name }} </tspan><tspan font-size="13" font-weight="800" font-style="italic" :fill="color">{{ nodeTravelTimes[lastNode.id] || 0 }} хв</tspan>
+              <tspan>{{ lastNode.isTerminus ? (lastNode.terminusStop || lastNode.name) : lastNode.name }} </tspan><tspan dx="8" font-size="13" font-weight="700" font-style="italic" :fill="color">{{ nodeTravelTimes[lastNode.id] || 0 }} хв</tspan>
             </text>
             <!-- Icons above bottom terminus circle -->
             <g v-if="lastNode.isTerminus" :transform="'translate(0, ' + (layout.CAP_R - 26) + ')'">
@@ -271,15 +273,15 @@
                   :x2="layout.rightX + 12" y2="0"
                   :stroke="color" stroke-width="4.5" stroke-linecap="square"/>
             <text :x="layout.rightX + 18" y="4"
-                  font-size="12" font-weight="700" fill="#111827"
+                  font-size="12" font-weight="500" fill="#111827"
                   style="pointer-events:none;">
               {{ stop.name }}
             </text>
           </g>
 
           <!-- Apple-style Unified Add Pill (Right Rail) -->
-          <g v-if="editable" class="anim-row"
-             :style="{ transform: 'translate(0px, ' + layout.getRightAddStopY(seg, layout.rightNodeY[i], layout.rightNodeY[i+1], i === layout.rightSegments.length - 1, segments.indexOf(seg)) + 'px)' }">
+          <g class="anim-row"
+             :style="{ opacity: editable ? 1 : 0, pointerEvents: editable ? 'auto' : 'none', transform: 'translate(0px, ' + layout.getRightAddStopY(seg, layout.rightNodeY[i], layout.rightNodeY[i+1], i === layout.rightSegments.length - 1, segments.indexOf(seg)) + 'px)' }">
             <rect :x="layout.rightX + 18" y="-14" width="64" height="28" rx="14"
                   fill="rgba(255,255,255,0.8)" stroke="#d1d5db" stroke-width="1"
                   style="backdrop-filter: blur(4px);" />
@@ -326,7 +328,7 @@
                       r="9" fill="#ffffff" :stroke="color" stroke-width="3"/>
               <text :x="layout.rightX + getBranchDx(br) + 18"
                     :y="(br.finished ? getRightBranchFinishedPath(br, i).turnY : getBranchEndpointY(br, i, true)) + 4"
-                    font-size="13" font-weight="800" fill="#111827" text-anchor="start"
+                    font-size="13" font-weight="700" fill="#111827" text-anchor="start"
                     style="pointer-events:none;">Контрольна точка</text>
             </g>
 
@@ -337,7 +339,7 @@
                       r="9" fill="#ffffff" :stroke="color" stroke-width="3"/>
               <text :x="layout.rightX - 18"
                     :y="getRightBranchFinishedPath(br, i).mergeY + 4"
-                    font-size="13" font-weight="800" fill="#111827" text-anchor="end"
+                    font-size="13" font-weight="700" fill="#111827" text-anchor="end"
                     style="pointer-events:none;">З'єднання</text>
             </g>
 
@@ -349,7 +351,7 @@
                       r="9" fill="#ffffff" :stroke="color" stroke-width="3"/>
               <text :x="layout.rightX + getBranchDx(br) + 18"
                     :y="getBranchNodeY(br, bNIdx, i, true) + 4"
-                    font-size="13" font-weight="800" fill="#111827">{{ bNode.name }}</text>
+                    font-size="13" font-weight="700" fill="#111827">{{ bNode.name }}</text>
             </g>
 
             <!-- Branch Stops (Per Section) -->
@@ -363,12 +365,12 @@
                       :stroke="color" stroke-width="4.5" stroke-linecap="square"/>
                 <text :x="layout.rightX + getBranchDx(br) + 18"
                       :y="getBranchStopY(br, secIdx, bStIdx, i, true) + 4"
-                      font-size="12" font-weight="700" fill="#111827">{{ bStop.name }}</text>
+                      font-size="12" font-weight="500" fill="#111827">{{ bStop.name }}</text>
               </g>
 
               <!-- Apple-style Unified Add Pill (Right Branch) -->
-              <g v-if="!br.finished && editable"
-                 :transform="'translate(' + (layout.rightX + getBranchDx(br) - 24) + ', ' + getBranchNodeY(br, secIdx - 1, i, true) + ')'">
+              <g v-if="!br.finished" class="anim-row"
+                 :style="{ opacity: editable ? 1 : 0, pointerEvents: editable ? 'auto' : 'none', transform: 'translate(' + (layout.rightX + getBranchDx(br) - 24) + 'px, ' + getBranchNodeY(br, secIdx - 1, i, true) + 'px)' }">
                 <rect x="0" y="-14" width="64" height="28" rx="14"
                       fill="rgba(255,255,255,0.8)" stroke="#d1d5db" stroke-width="1"
                       style="backdrop-filter: blur(4px);" />
@@ -395,7 +397,8 @@
           </template>
 
           <!-- Direction Arrow (Gradient Stripe Style) -->
-          <g v-if="i > 0 && (editable || (seg.stops && seg.stops.length >= 2))"
+          <g v-if="i > 0"
+             :style="{ opacity: (editable || (seg.stops && seg.stops.length >= 2)) ? 1 : 0, transition: 'opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1)' }"
              :transform="'translate(' + layout.rightX + ', ' + (layout.rightNodeY[i] + 25) + ') rotate(90)'"
              style="pointer-events:none;">
             <polygon points="0,-4.5 42,-4.5 50,0 42,4.5 0,4.5" fill="url(#arrow-fade)" />
@@ -431,15 +434,15 @@
                   :x2="layout.leftX - 12" y2="0"
                   :stroke="color" stroke-width="4.5" stroke-linecap="square"/>
             <text :x="layout.leftX - 18" y="4"
-                  font-size="12" font-weight="700" fill="#111827" text-anchor="end"
+                  font-size="12" font-weight="500" fill="#111827" text-anchor="end"
                   style="pointer-events:none;">
               {{ stop.name }}
             </text>
           </g>
 
           <!-- Apple-style Unified Add Pill (Left Rail) -->
-          <g v-if="editable" class="anim-row"
-             :style="{ transform: 'translate(0px, ' + layout.getLeftAddStopY(seg, layout.leftNodeY[i], layout.leftNodeY[i+1], i === layout.leftSegments.length - 1, segments.indexOf(seg)) + 'px)' }">
+          <g class="anim-row"
+             :style="{ opacity: editable ? 1 : 0, pointerEvents: editable ? 'auto' : 'none', transform: 'translate(0px, ' + layout.getLeftAddStopY(seg, layout.leftNodeY[i], layout.leftNodeY[i+1], i === layout.leftSegments.length - 1, segments.indexOf(seg)) + 'px)' }">
             <rect :x="layout.leftX - 82" y="-14" width="64" height="28" rx="14"
                   fill="rgba(255,255,255,0.8)" stroke="#d1d5db" stroke-width="1"
                   style="backdrop-filter: blur(4px);" />
@@ -486,7 +489,7 @@
                       r="9" fill="#f5f5f5" :stroke="color" stroke-width="3"/>
               <text :x="layout.leftX - getBranchDx(br) - 18"
                     :y="(br.finished ? getLeftBranchFinishedPath(br, i).turnY : getBranchEndpointY(br, i, false)) + 4"
-                    font-size="13" font-weight="800" fill="#111827" text-anchor="end"
+                    font-size="13" font-weight="700" fill="#111827" text-anchor="end"
                     style="pointer-events:none;">Контрольна точка</text>
             </g>
 
@@ -497,7 +500,7 @@
                       r="9" fill="#f5f5f5" :stroke="color" stroke-width="3"/>
               <text :x="layout.leftX + 18"
                     :y="getLeftBranchFinishedPath(br, i).mergeY + 4"
-                    font-size="13" font-weight="800" fill="#111827" text-anchor="start"
+                    font-size="13" font-weight="700" fill="#111827" text-anchor="start"
                     style="pointer-events:none;">З'єднання</text>
             </g>
 
@@ -509,7 +512,7 @@
                       r="9" fill="#f5f5f5" :stroke="color" stroke-width="3"/>
               <text :x="layout.leftX - getBranchDx(br) - 18"
                     :y="getBranchNodeY(br, bNIdx, i, false) + 4"
-                    font-size="13" font-weight="800" fill="#111827" text-anchor="end">{{ bNode.name }}</text>
+                    font-size="13" font-weight="700" fill="#111827" text-anchor="end">{{ bNode.name }}</text>
             </g>
 
             <!-- Branch Stops (Per Section) -->
@@ -523,12 +526,12 @@
                       :stroke="color" stroke-width="4.5" stroke-linecap="square"/>
                 <text :x="layout.leftX - getBranchDx(br) - 18"
                       :y="getBranchStopY(br, secIdx, bStIdx, i, false) + 4"
-                      font-size="12" font-weight="700" fill="#111827" text-anchor="end">{{ bStop.name }}</text>
+                      font-size="12" font-weight="500" fill="#111827" text-anchor="end">{{ bStop.name }}</text>
               </g>
 
               <!-- Apple-style Unified Add Pill (Left Branch) -->
-              <g v-if="!br.finished && editable"
-                 :transform="'translate(' + (layout.leftX - getBranchDx(br) + 24) + ', ' + getBranchNodeY(br, secIdx - 1, i, false) + ')'">
+              <g v-if="!br.finished" class="anim-row"
+                 :style="{ opacity: editable ? 1 : 0, pointerEvents: editable ? 'auto' : 'none', transform: 'translate(' + (layout.leftX - getBranchDx(br) + 24) + 'px, ' + getBranchNodeY(br, secIdx - 1, i, false) + 'px)' }">
                 <rect x="-64" y="-14" width="64" height="28" rx="14"
                       fill="rgba(255,255,255,0.8)" stroke="#d1d5db" stroke-width="1"
                       style="backdrop-filter: blur(4px);" />
@@ -555,7 +558,8 @@
           </template>
 
           <!-- Direction Arrow (Gradient Stripe Style) -->
-          <g v-if="i !== layout.leftSegments.length - 1 && (editable || (seg.stops && seg.stops.length >= 2))"
+          <g v-if="i !== layout.leftSegments.length - 1"
+             :style="{ opacity: (editable || (seg.stops && seg.stops.length >= 2)) ? 1 : 0, transition: 'opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1)' }"
              :transform="'translate(' + layout.leftX + ', ' + (layout.leftNodeY[i+1] - 25) + ') rotate(-90)'"
              style="pointer-events:none;">
             <polygon points="0,-4.5 42,-4.5 50,0 42,4.5 0,4.5" fill="url(#arrow-fade)" />
@@ -589,13 +593,13 @@
           <!-- Control Node Name Label & Travel Time -->
           <text v-if="node.side === 'left'"
                 :x="layout.leftX - 18" y="4"
-                font-size="13" font-weight="800" fill="#111827" text-anchor="end" style="pointer-events:none;">
-            <tspan>{{ (node.type === 'end' || node.isTerminus) && node.terminusStop ? node.terminusStop : node.name }} </tspan><tspan font-size="13" font-weight="800" font-style="italic" :fill="color">{{ nodeTravelTimes[node.id] || 0 }} хв</tspan>
+                font-size="13" font-weight="700" fill="#111827" text-anchor="end" style="pointer-events:none;">
+            <tspan>{{ (node.type === 'end' || node.isTerminus) && node.terminusStop ? node.terminusStop : node.name }} </tspan><tspan dx="8" font-size="13" font-weight="700" font-style="italic" :fill="color">{{ nodeTravelTimes[node.id] || 0 }} хв</tspan>
           </text>
           <text v-else
                 :x="layout.rightX + 18" y="4"
-                font-size="13" font-weight="800" fill="#111827" style="pointer-events:none;">
-            <tspan>{{ (node.type === 'end' || node.isTerminus) && node.terminusStop ? node.terminusStop : node.name }} </tspan><tspan font-size="13" font-weight="800" font-style="italic" :fill="color">{{ nodeTravelTimes[node.id] || 0 }} хв</tspan>
+                font-size="13" font-weight="700" fill="#111827" style="pointer-events:none;">
+            <tspan>{{ (node.type === 'end' || node.isTerminus) && node.terminusStop ? node.terminusStop : node.name }} </tspan><tspan dx="8" font-size="13" font-weight="700" font-style="italic" :fill="color">{{ nodeTravelTimes[node.id] || 0 }} хв</tspan>
           </text>
           
           <!-- Icons for side termini (placed INSIDE the oval) -->
@@ -1263,8 +1267,13 @@ defineExpose({
 
 .anim-row,
 .bottom-cap-group {
-  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  will-change: transform;
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform, opacity;
+}
+
+.anim-rect {
+  transition: height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: height;
 }
 
 @keyframes stopFadeIn {

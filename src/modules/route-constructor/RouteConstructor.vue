@@ -691,7 +691,7 @@ const canvasRef = ref(null);
                  backgroundImage: `linear-gradient(${routeColor}1A 1px, transparent 1px), linear-gradient(90deg, ${routeColor}1A 1px, transparent 1px)`,
                  backgroundSize: '8px 8px'
                }">
-            <span class="font-black leading-none select-none z-10 tracking-tighter"
+            <span class="font-bold leading-none select-none z-10 tracking-tighter"
                   :class="{
                     'text-[32px]': ((routeNumber || '1').toString() + (routeLetter || '')).length <= 2,
                     'text-[26px]': ((routeNumber || '1').toString() + (routeLetter || '')).length === 3,
@@ -713,14 +713,14 @@ const canvasRef = ref(null);
               <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
             </button>
             <!-- Branch Toggle (Y symbol) -->
-            <button @click="isBranchMode = !isBranchMode"
+            <button @click="isBranchMode = !isBranchMode; if (isBranchMode) isEditable = true"
                     class="w-8 h-8 rounded-full border shadow-sm flex items-center justify-center transition-colors cursor-pointer"
                     :class="isBranchMode ? 'text-white' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'"
                     :style="isBranchMode ? { backgroundColor: routeColor, borderColor: routeColor } : {}">
               <span class="font-bold font-serif text-sm">Y</span>
             </button>
             <!-- Toggle Edit Mode (Show/Hide Controls) -->
-            <button @click="isEditable = !isEditable"
+            <button @click="isEditable = !isEditable; if (!isEditable) isBranchMode = false"
                     class="w-8 h-8 rounded-full border shadow-sm flex items-center justify-center transition-colors cursor-pointer"
                     :class="!isEditable ? 'text-white' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'"
                     :style="!isEditable ? { backgroundColor: routeColor, borderColor: routeColor } : {}"
@@ -901,7 +901,7 @@ const canvasRef = ref(null);
       <!-- MAIN CONSTRUCTOR PANEL -->
       <template v-if="!activeSegment">
         <div class="p-6 flex-1 flex flex-col gap-3">
-          <h1 class="text-2xl font-black italic text-gray-900">Тролейбусний маршрут</h1>
+          <h1 class="text-2xl font-bold italic text-gray-900">Тролейбусний маршрут</h1>
 
           <!-- Route ID -->
           <div class="border border-gray-200 rounded-2xl p-4">
@@ -909,12 +909,12 @@ const canvasRef = ref(null);
               <div>
                 <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Номер маршруту</p>
                 <input v-model="routeNumber" type="text" maxlength="3"
-                  class="w-full text-center text-lg font-black bg-gray-50 border border-gray-200 rounded-xl py-2 text-gray-900 focus:outline-none focus:border-blue-400"/>
+                  class="w-full text-center text-lg font-bold bg-gray-50 border border-gray-200 rounded-xl py-2 text-gray-900 focus:outline-none focus:border-blue-400"/>
               </div>
               <div>
                 <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Буква маршруту</p>
                 <input v-model="routeLetter" type="text" maxlength="1"
-                  class="w-full text-center text-lg font-black bg-gray-50 border border-gray-200 rounded-xl py-2 text-gray-900 focus:outline-none focus:border-blue-400"/>
+                  class="w-full text-center text-lg font-bold bg-gray-50 border border-gray-200 rounded-xl py-2 text-gray-900 focus:outline-none focus:border-blue-400"/>
               </div>
               <div>
                 <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Колір маршруту</p>
@@ -933,7 +933,7 @@ const canvasRef = ref(null);
                    @click="selectedWorkMode = mode.id"
                    class="flex flex-col items-center gap-1.5 cursor-pointer">
                 <span class="text-xs font-semibold text-gray-600 text-center leading-tight">{{ mode.name }}</span>
-                <div class="w-12 h-9 rounded-xl border-2 flex items-center justify-center font-black text-base transition-all"
+                <div class="w-12 h-9 rounded-xl border-2 flex items-center justify-center font-bold text-base transition-all"
                      :class="selectedWorkMode === mode.id
                        ? 'bg-gray-100 border-gray-400 text-gray-900'
                        : 'bg-gray-50 border-gray-200 text-gray-300'">
@@ -980,10 +980,10 @@ const canvasRef = ref(null);
                 <label class="text-[9px] font-bold text-gray-400 uppercase block mb-1 text-center">Час відпочинку (хв)</label>
                 <div class="flex items-center justify-center gap-1.5 text-xs">
                   <input v-model.number="node.waitMin" type="number" min="0"
-                    class="w-10 text-center border border-gray-200 rounded-lg py-1 font-black text-gray-800 bg-white focus:outline-none focus:border-blue-400 shadow-sm" title="Мінімум"/>
+                    class="w-10 text-center border border-gray-200 rounded-lg py-1 font-bold text-gray-800 bg-white focus:outline-none focus:border-blue-400 shadow-sm" title="Мінімум"/>
                   <span class="text-gray-400 font-bold">–</span>
                   <input v-model.number="node.waitMax" type="number" min="0"
-                    class="w-10 text-center border border-gray-200 rounded-lg py-1 font-black text-gray-800 bg-white focus:outline-none focus:border-blue-400 shadow-sm" title="Максимум"/>
+                    class="w-10 text-center border border-gray-200 rounded-lg py-1 font-bold text-gray-800 bg-white focus:outline-none focus:border-blue-400 shadow-sm" title="Максимум"/>
                 </div>
               </div>
             </div>
@@ -1033,7 +1033,7 @@ const canvasRef = ref(null);
               <div class="flex items-center justify-between mb-1.5">
                 <span class="text-xs font-bold truncate mr-2 flex items-center gap-1.5"
                       :class="segItem.isBranch ? 'text-purple-700' : 'text-gray-700'">
-                  <span v-if="segItem.isBranch" class="px-1.5 py-0.5 text-[8px] font-black uppercase rounded bg-purple-100 text-purple-700 shrink-0">Гілка</span>
+                  <span v-if="segItem.isBranch" class="px-1.5 py-0.5 text-[8px] font-bold uppercase rounded bg-purple-100 text-purple-700 shrink-0">Гілка</span>
                   {{ segItem.name }}
                 </span>
                 <button v-if="!segItem.isBranch" @click="router.push({ query: { ...route.query, segmentId: segItem.id } })"
@@ -1044,15 +1044,15 @@ const canvasRef = ref(null);
               <div class="grid grid-cols-3 gap-1.5">
                 <div class="bg-gray-50 rounded-xl p-2 text-center border border-gray-100">
                   <div class="text-gray-400 text-[9px] mb-0.5 uppercase tracking-wider">Час хв</div>
-                  <div class="font-black text-sm text-gray-800">{{ segItem.travelTime }}</div>
+                  <div class="font-bold text-sm text-gray-800">{{ segItem.travelTime }}</div>
                 </div>
                 <div class="bg-gray-50 rounded-xl p-2 text-center border border-gray-100">
                   <div class="text-gray-400 text-[9px] mb-0.5 uppercase tracking-wider">Інт. від</div>
-                  <div class="font-black text-sm text-gray-800">{{ segItem.interval }}</div>
+                  <div class="font-bold text-sm text-gray-800">{{ segItem.interval }}</div>
                 </div>
                 <div class="bg-gray-50 rounded-xl p-2 text-center border border-gray-100">
                   <div class="text-gray-400 text-[9px] mb-0.5 uppercase tracking-wider">Інт. до</div>
-                  <div class="font-black text-sm text-gray-800">{{ segItem.intervalMax }}</div>
+                  <div class="font-bold text-sm text-gray-800">{{ segItem.intervalMax }}</div>
                 </div>
               </div>
               <p class="text-[10px] text-gray-400 mt-1.5">
@@ -1128,7 +1128,7 @@ const canvasRef = ref(null);
             Назад до маршруту
           </button>
 
-          <h2 class="text-xl font-black text-gray-900">{{ getSegmentName(activeSegment) }}</h2>
+          <h2 class="text-xl font-bold text-gray-900">{{ getSegmentName(activeSegment) }}</h2>
 
           <!-- Time & Intervals -->
           <div class="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
