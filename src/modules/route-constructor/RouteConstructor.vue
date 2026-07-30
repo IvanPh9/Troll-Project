@@ -4,6 +4,7 @@ import { useRouter, useRoute } from 'vue-router';
 import { useStopsStore } from '@/stores/stops';
 import RouteCanvas from './components/RouteCanvas.vue';
 import StopSelector from './components/StopSelector.vue';
+import SvgIcon from '@/components/ui/SvgIcon.vue';
 
 const router = useRouter();
 const route = useRoute();
@@ -103,6 +104,15 @@ const routeData = computed(() => ({
   branches: branches.value,
   color: routeColor.value
 }));
+
+// Control nodes for segment settings (allows assigning DB stop)
+const controlNodes = computed(() => nodes.value.filter(n => n.type === 'control'));
+// Control nodes relevant to the currently edited segment (by side or terminus)
+const segmentControlNodes = computed(() => {
+  if (!activeSegment.value) return [];
+  const side = activeSegment.value.side || 'right';
+  return nodes.value.filter(n => (n.side === side) || n.isTerminus);
+});
 
 /* ─────────── Mutations ─────────── */
 function addStop(sIdx, side) {
@@ -712,12 +722,13 @@ const canvasRef = ref(null);
             <button class="w-8 h-8 rounded-full border border-gray-300 bg-white shadow-sm flex items-center justify-center text-gray-700 hover:bg-gray-50 cursor-pointer">
               <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
             </button>
-            <!-- Branch Toggle (Y symbol) -->
+            <!-- Branch Toggle (Branch SVG Icon) -->
             <button @click="isBranchMode = !isBranchMode; if (isBranchMode) isEditable = true"
                     class="w-8 h-8 rounded-full border shadow-sm flex items-center justify-center transition-colors cursor-pointer"
                     :class="isBranchMode ? 'text-white' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'"
-                    :style="isBranchMode ? { backgroundColor: routeColor, borderColor: routeColor } : {}">
-              <span class="font-bold font-serif text-sm">Y</span>
+                    :style="isBranchMode ? { backgroundColor: routeColor, borderColor: routeColor } : {}"
+                    title="Режим розгалудження">
+              <SvgIcon name="branch" class="w-4 h-4" />
             </button>
             <!-- Toggle Edit Mode (Show/Hide Controls) -->
             <button @click="isEditable = !isEditable; if (!isEditable) isBranchMode = false"
@@ -869,11 +880,23 @@ const canvasRef = ref(null);
         <div v-if="editNode"
              class="fixed inset-0 z-[200] flex items-center justify-center bg-black/20 backdrop-blur-[2px]"
              @click.self="editNode = null">
-          <div class="bg-white rounded-2xl shadow-2xl p-6 w-64 border border-gray-100">
-            <h3 class="text-base font-bold text-gray-900 mb-4">Контрольна зупинка</h3>
+          <div class="bg-white rounded-2xl shadow-2xl p-6 w-72 border border-gray-100">
+            <h3 class="text-base font-bold text-gray-900 mb-4">Контрольна точка</h3>
+            
             <label class="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Назва</label>
             <input v-model="editNode.name" type="text"
               class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm font-bold mb-4 bg-gray-50 focus:outline-none focus:border-blue-400"/>
+              
+            <label class="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Прив'язка до бази</label>
+            <div class="mb-5">
+              <StopSelector 
+                v-model="editNode.realId" 
+                :stops="availableStops" 
+                @create="name => createNewStopForNode(editNode, name)"
+                @update:modelValue="id => assignRealStopToNode(editNode, id)"
+              />
+            </div>
+
             <button @click="editNode = null"
               class="w-full py-2.5 rounded-xl font-bold text-white text-sm shadow-sm hover:opacity-90 transition-opacity"
               :style="{ backgroundColor: routeColor }">Готово</button>
@@ -1154,6 +1177,19 @@ const canvasRef = ref(null);
                   class="w-full bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 text-sm font-bold text-gray-800 focus:outline-none focus:border-blue-400"/>
               </div>
             </div>
+
+            <!-- Control nodes -->
+            <div v-if="controlNodes.length > 0" class="mt-4 pt-4 border-t border-gray-100">
+               <div v-for="node in controlNodes" :key="'cn-' + node.id" class="mt-2 flex items-center gap-1">
+                 <span class="text-xs font-medium w-1/3">{{ node.name }}</span>
+                 <StopSelector 
+                   v-model="node.realId" 
+                   :stops="availableStops" 
+                   @create="name => createNewStopForNode(node, name)"
+                   @update:modelValue="id => assignRealStopToNode(node, id)"
+                 />
+               </div>
+            </div>
           </div>
 
           <!-- Stops List -->
@@ -1186,8 +1222,8 @@ const canvasRef = ref(null);
                   <StopSelector 
                     v-model="stop.realId" 
                     :stops="availableStops" 
-                    @create="name => createNewStopForSeg(stop, name)"
-                    @update:modelValue="id => assignRealStop(stop, id)"
+                    @create="name => createNewStopForNode(stop, name)"
+                    @update:modelValue="id => assignRealStopToNode(stop, id)"
                   />
                   <div v-if="stop.realId && getStopDirection(stop.realId)" class="mt-1.5 flex items-start gap-1">
                     <svg class="w-3 h-3 text-gray-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>

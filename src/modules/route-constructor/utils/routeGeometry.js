@@ -28,6 +28,7 @@ export class OvalLayout {
     this.nodes = nodes || [];
     this.segments = segments || [];
     this.branches = branches || [];
+    this.isBranchMode = opts.isBranchMode || false;
     Object.assign(this, OVAL_DEFAULTS, opts);
 
     // Pre-compute once at construction time for O(1) property access
@@ -77,16 +78,16 @@ export class OvalLayout {
       const isType1 = b.mergeConfigured === 'add_inside';
       const isType2 = b.finished && b.targetType && b.targetType !== 'current';
       const dx = (isType1 || isType2) ? 190 : 45;
-      let branchHeight = 48 + 25; // curve height + endpoint space
+      let branchHeight = 96; // 64px diagonal + 32px vertical to endpoint
       for (let si = 0; si < sectionCount; si++) {
         const stopsInSection = (sections[si]?.stops || []).length;
-        branchHeight += (stopsInSection > 0 ? (35 + stopsInSection * 32) : 25);
+        branchHeight += stopsInSection * 32;
       }
-      if (nodeCount > 0) branchHeight += nodeCount * 28;
+      if (nodeCount > 0) branchHeight += nodeCount * 32;
       
-      // Ensure finished branches have a minimum vertical length
+      // Ensure finished branches have grid-aligned height: 96 (out) + 32 (vertical) + 64 (merge in) = 192px
       if (b.finished) {
-        branchHeight = Math.max(135, branchHeight);
+        branchHeight = Math.max(192, branchHeight + 96);
       }
 
       // Sub-branches inside this branch
@@ -107,7 +108,8 @@ export class OvalLayout {
   }
 
   _segH(seg, isLastSeg, segIdx, ignoreFarBranches = false) {
-    const base = this.editable !== false ? 64 : 32; // smaller base spacing when not editable
+    const isBranchMode = !!this.isBranchMode;
+    const base = this.editable !== false ? (isBranchMode ? 96 : 64) : 32;
     const branchPadding = this.getBranchPadding(segIdx, ignoreFarBranches);
     return base + ((seg && seg.stops) ? seg.stops.length : 0) * this.STOP_H + branchPadding;
   }
@@ -127,15 +129,15 @@ export class OvalLayout {
         if (b.side !== 'right') continue;
         const sIdx = b.segIdx ?? 0;
         
-        let brH = 48 + 25;
+        let brH = 96;
         const sectionCount = Math.max((b.nodes || []).length + 1, 1);
         for (let si = 0; si < sectionCount; si++) {
            const stopsCount = (b.sections?.[si]?.stops || []).length;
-           brH += (stopsCount > 0 ? (35 + stopsCount * 32) : 25);
+           brH += stopsCount * 32;
         }
         const nodeCount = (b.nodes || []).length;
-        if (nodeCount > 0) brH += nodeCount * 28;
-        if (b.finished) brH = Math.max(135, brH);
+        if (nodeCount > 0) brH += nodeCount * 32;
+        if (b.finished) brH = Math.max(192, brH + 96);
         
         let targetIdx = -1;
         if (b.finished && b.targetType === 'node' && b.targetNodeId) {
@@ -217,6 +219,7 @@ export class OvalLayout {
     if (n === 0) return (top + bot) / 2;
     const segBranches = (segIdx !== undefined) ? this.branches.filter(b => b.segIdx === segIdx) : [];
     const isLeft = seg && seg.side === 'left';
+    const isBranchMode = !!this.isBranchMode;
 
     let branchOffset = 0;
     segBranches.forEach(b => {
@@ -225,12 +228,17 @@ export class OvalLayout {
     });
 
     if (isLeft) {
-      const base = this.editable !== false ? 32 : 0;
-      // Pill is at 32 (if editable), Stops start after it
-      return top + base + 32 * (n - stIdx);
+      // On left rail, travel is UPWARD (from bot to top).
+      // bot is the lower control node Y.
+      // In branch mode, offset stops 64px ABOVE bot so the UP-LEFT (-26px) spur button sits in clear space.
+      const bottomOffset = isBranchMode ? 64 : (this.editable !== false ? 32 : 0);
+      return bot - bottomOffset - 32 * (n - 1 - stIdx);
     } else {
-      // Stops start at 32
-      return top + branchOffset + 32 + 32 * stIdx;
+      // On right rail, travel is DOWNWARD (from top to bot).
+      // top is the upper control node Y.
+      // In branch mode, offset stops 64px BELOW top so the DOWN-RIGHT (+26px) spur button sits in clear space.
+      const topOffset = isBranchMode ? 64 : 32;
+      return top + branchOffset + topOffset + 32 * stIdx;
     }
   }
 
@@ -241,8 +249,9 @@ export class OvalLayout {
   getRightAddStopY(seg, top, bot, isLastSeg, segIdx) {
     const pad = this.getBranchPadding(segIdx);
     const n = seg.stops ? seg.stops.length : 0;
-    // Pill is placed exactly 32px after the last stop
-    return top + pad + 32 + 32 * n;
+    const isBranchMode = !!this.isBranchMode;
+    const topOffset = isBranchMode ? 64 : 32;
+    return top + pad + topOffset + 32 * n;
   }
 
   getLeftAddStopY(seg, top, bot, isLastSeg, segIdx) {

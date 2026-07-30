@@ -126,7 +126,7 @@
         <!-- Animated Triangle Direction Arrows -->
 
         <!-- ── "+ Додати ділянку" BUTTON ON RIGHT RAIL ── -->
-        <g :style="{ opacity: (editable && !localBranchMode) ? 1 : 0, pointerEvents: (editable && !localBranchMode) ? 'auto' : 'none', transition: 'opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1)' }">
+        <g :style="{ opacity: (editable && !localBranchMode) ? 1 : 0, pointerEvents: (editable && !localBranchMode) ? 'auto' : 'none', transition: 'opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1)' }">
           <!-- Grey gradient extension line towards right button -->
           <line class="anim-line"
                 :x1="layout.rightX" :y1="(layout.rightNodeY[layout.rightNodeY.length - 1] || 0)"
@@ -145,7 +145,7 @@
           </g>
         </g>
         <!-- ── "+ Додати ділянку" BUTTON ON LEFT RAIL ── -->
-        <g :style="{ opacity: (editable && !localBranchMode) ? 1 : 0, pointerEvents: (editable && !localBranchMode) ? 'auto' : 'none', transition: 'opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1)' }">
+        <g :style="{ opacity: (editable && !localBranchMode) ? 1 : 0, pointerEvents: (editable && !localBranchMode) ? 'auto' : 'none', transition: 'opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1)' }">
           <!-- Grey gradient extension line towards left button -->
           <line class="anim-line"
                 :x1="layout.leftX" :y1="(layout.leftNodeY[0] || 0)"
@@ -170,10 +170,10 @@
 
         <!-- Top Cap Background Gradient (Full upper half ring for clean mode) -->
         <path :d="'M ' + layout.leftX + ' ' + layout.topY + ' A ' + layout.CAP_R + ' ' + layout.CAP_R + ' 0 0 1 ' + layout.rightX + ' ' + layout.topY + ' L ' + (layout.rightX - 50) + ' ' + layout.topY + ' A ' + (layout.CAP_R - 50) + ' ' + (layout.CAP_R - 50) + ' 0 0 0 ' + (layout.leftX + 50) + ' ' + layout.topY + ' Z'"
-              fill="url(#cap-glow-top)" :style="{ opacity: !editable ? 1 : 0, transition: 'opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1)' }" />
+              fill="url(#cap-glow-top)" :style="{ opacity: !editable ? 1 : 0, transition: 'opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1)' }" />
         <!-- Top Cap Background Gradient (Right quadrant only for edit mode) -->
         <path :d="'M ' + layout.rightX + ' ' + layout.topY + ' A ' + layout.CAP_R + ' ' + layout.CAP_R + ' 0 0 0 0 ' + (layout.topY - layout.CAP_R) + ' L 0 ' + (layout.topY - (layout.CAP_R - 50)) + ' A ' + (layout.CAP_R - 50) + ' ' + (layout.CAP_R - 50) + ' 0 0 1 ' + (layout.rightX - 50) + ' ' + layout.topY + ' Z'"
-              fill="url(#cap-glow-top)" :style="{ opacity: editable ? 1 : 0, transition: 'opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1)' }" />
+              fill="url(#cap-glow-top)" :style="{ opacity: editable ? 1 : 0, transition: 'opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1)' }" />
 
         <!-- Top Arc Arrows -->
         <g v-if="arcArrows">
@@ -187,6 +187,10 @@
 
         <!-- ── TOP TERMINUS (Кінцева 1, Top Center of Cap) ── -->
         <g v-if="firstNode">
+          <!-- Extra long horizontal spur line on curve extending right -->
+          <line :x1="0" :y1="layout.topY - layout.CAP_R" :x2="65" :y2="layout.topY - layout.CAP_R"
+                :stroke="color" :stroke-width="layout.RAIL_W" stroke-linecap="round"
+                :style="{ opacity: (localBranchMode && !nodeHasBranch(firstNode)) ? 1 : 0, transition: 'opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1)' }" />
           <circle :cx="0" :cy="layout.topY - layout.CAP_R" r="9"
                   fill="#f5f5f5" :stroke="firstNode.isTerminus ? '#111827' : color" :stroke-width="firstNode.isTerminus ? 4 : 3.5"
                   :class="{ 'terminus-added': firstNode.isTerminus }" />
@@ -201,20 +205,26 @@
               <SvgIcon :name="icon.id" :x="icon.x" :y="icon.y" :width="icon.w" :height="icon.h" class="text-gray-800" />
             </g>
           </g>
+          <!-- Branch Addition Button at Top Terminus (65px Horizontal Right) -->
+          <g :style="{ opacity: (localBranchMode && !nodeHasBranch(firstNode)) ? 1 : 0, transform: 'translate(65px, ' + (layout.topY - layout.CAP_R) + 'px) scale(' + ((localBranchMode && !nodeHasBranch(firstNode)) ? 1 : 0.5) + ')', transition: 'opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1), transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)', pointerEvents: (localBranchMode && !nodeHasBranch(firstNode)) ? 'auto' : 'none' }"
+             style="cursor:pointer;" @click.stop="$emit('add-branch', 0)">
+            <circle cx="0" cy="0" r="9" fill="#f5f5f5" :stroke="color" stroke-width="3.5" class="shadow-sm transition"/>
+            <SvgIcon name="plus" :x="-5" :y="-5" :width="10" :height="10" class="text-gray-900 pointer-events-none" />
+          </g>
         </g>
 
         <!-- ── BOTTOM CAP & TERMINUS GROUP ── -->
-        <g :transform="'translate(0, ' + layout.botY + ')'" class="bottom-cap-group">
+        <g class="bottom-cap-group anim-row" :style="{ transform: 'translate(0px, ' + layout.botY + 'px)' }">
           <!-- Bottom Semicircular Cap (Left to Right arc bowing DOWN) -->
           <path :d="'M ' + layout.leftX + ' 0 A ' + layout.CAP_R + ' ' + layout.CAP_R + ' 0 0 0 ' + layout.rightX + ' 0'"
                 fill="none" :stroke="color" :stroke-width="layout.RAIL_W" stroke-linejoin="round" stroke-linecap="round"/>
 
           <!-- Bottom Cap Background Gradient (Full lower half ring for clean mode) -->
           <path :d="'M ' + layout.rightX + ' 0 A ' + layout.CAP_R + ' ' + layout.CAP_R + ' 0 0 1 ' + layout.leftX + ' 0 L ' + (layout.leftX + 50) + ' 0 A ' + (layout.CAP_R - 50) + ' ' + (layout.CAP_R - 50) + ' 0 0 0 ' + (layout.rightX - 50) + ' 0 Z'"
-                fill="url(#cap-glow-bot)" :style="{ opacity: !editable ? 1 : 0, transition: 'opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1)' }" />
+                fill="url(#cap-glow-bot)" :style="{ opacity: !editable ? 1 : 0, transition: 'opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1)' }" />
           <!-- Bottom Cap Background Gradient (Left quadrant only for edit mode) -->
           <path :d="'M ' + layout.leftX + ' 0 A ' + layout.CAP_R + ' ' + layout.CAP_R + ' 0 0 0 0 ' + layout.CAP_R + ' L 0 ' + (layout.CAP_R - 50) + ' A ' + (layout.CAP_R - 50) + ' ' + (layout.CAP_R - 50) + ' 0 0 1 ' + (layout.leftX + 50) + ' 0 Z'"
-                fill="url(#cap-glow-bot)" :style="{ opacity: editable ? 1 : 0, transition: 'opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1)' }" />
+                fill="url(#cap-glow-bot)" :style="{ opacity: editable ? 1 : 0, transition: 'opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1)' }" />
 
           <!-- Bottom Arc Arrows -->
           <g v-if="arcArrows">
@@ -228,6 +238,10 @@
 
           <!-- Bottom Terminus (Кінцева 2, Bottom Center of Cap) -->
           <g v-if="lastNode">
+            <!-- Extra long horizontal spur line on curve extending LEFT (-65px) -->
+            <line :x1="0" :y1="layout.CAP_R" :x2="-65" :y2="layout.CAP_R"
+                  :stroke="color" :stroke-width="layout.RAIL_W" stroke-linecap="round"
+                  :style="{ opacity: (localBranchMode && !nodeHasBranch(lastNode)) ? 1 : 0, transition: 'opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1)' }" />
             <circle :cx="0" :cy="layout.CAP_R" r="9"
                     fill="#f5f5f5" :stroke="lastNode.isTerminus ? '#111827' : color" :stroke-width="lastNode.isTerminus ? 4 : 3.5"
                     :class="{ 'terminus-added': lastNode.isTerminus }" />
@@ -241,6 +255,12 @@
               <g v-for="(icon, i) in getTerminusIcons(lastNode)" :key="icon.id" :transform="'translate(' + (i * 24 - (getTerminusIcons(lastNode).length - 1) * 12) + ', 0)'">
                 <SvgIcon :name="icon.id" :x="icon.x" :y="icon.y" :width="icon.w" :height="icon.h" class="text-gray-800" />
               </g>
+            </g>
+            <!-- Branch Addition Button at Bottom Terminus (65px Horizontal Left) -->
+            <g :style="{ opacity: (localBranchMode && !nodeHasBranch(lastNode)) ? 1 : 0, transform: 'translate(-65px, ' + (layout.CAP_R) + 'px) scale(' + ((localBranchMode && !nodeHasBranch(lastNode)) ? 1 : 0.5) + ')', transition: 'opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1), transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)', pointerEvents: (localBranchMode && !nodeHasBranch(lastNode)) ? 'auto' : 'none' }"
+               style="cursor:pointer;" @click.stop="$emit('add-branch', segments.length - 1)">
+              <circle cx="0" cy="0" r="9" fill="#f5f5f5" :stroke="color" stroke-width="3.5" class="shadow-sm transition"/>
+              <SvgIcon name="plus" :x="-5" :y="-5" :width="10" :height="10" class="text-gray-900 pointer-events-none" />
             </g>
           </g>
         </g>
@@ -281,7 +301,7 @@
 
           <!-- Apple-style Unified Add Pill (Right Rail) -->
           <g class="anim-row"
-             :style="{ opacity: editable ? 1 : 0, pointerEvents: editable ? 'auto' : 'none', transform: 'translate(0px, ' + layout.getRightAddStopY(seg, layout.rightNodeY[i], layout.rightNodeY[i+1], i === layout.rightSegments.length - 1, segments.indexOf(seg)) + 'px)' }">
+             :style="{ opacity: (editable && !localBranchMode) ? 1 : 0, pointerEvents: (editable && !localBranchMode) ? 'auto' : 'none', transition: 'opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1)', transform: 'translate(0px, ' + layout.getRightAddStopY(seg, layout.rightNodeY[i], layout.rightNodeY[i+1], i === layout.rightSegments.length - 1, segments.indexOf(seg)) + 'px)' }">
             <rect :x="layout.rightX + 18" y="-14" width="64" height="28" rx="14"
                   fill="rgba(255,255,255,0.8)" stroke="#d1d5db" stroke-width="1"
                   style="backdrop-filter: blur(4px);" />
@@ -312,17 +332,23 @@
                   :d="getRightBranchFinishedPath(br, i).d"
                   fill="none" :stroke="color" :stroke-width="layout.RAIL_W" stroke-linejoin="round" stroke-linecap="round"/>
             <path v-else
-                  :d="getBranchOutPath(layout.rightX, layout.rightNodeY[i] + 40, getBranchDx(br), 1, 1) + ' L ' + (layout.rightX + getBranchDx(br)) + ' ' + getBranchEndpointY(br, i, true)"
+                  :d="getBranchOutPath(layout.rightX, layout.rightNodeY[i], getBranchDx(br), 1, 1)"
                   fill="none" :stroke="color" :stroke-width="layout.RAIL_W" stroke-linejoin="round" stroke-linecap="round"/>
 
             <!-- Branch Direction Arrow (Right) -->
-            <g :transform="'translate(' + (layout.rightX + getBranchDx(br)) + ', ' + (layout.rightNodeY[i] + 40 + 48) + ') rotate(90)'">
+            <g class="anim-row" :style="{ transform: 'translate(' + (layout.rightX + getBranchDx(br)) + 'px, ' + (layout.rightNodeY[i] + 40 + 48) + 'px) rotate(90deg)', transition: 'all 0.6s cubic-bezier(0.4, 0, 0.2, 1)' }">
               <polygon points="0,-4.5 42,-4.5 50,0 42,4.5 0,4.5" fill="url(#arrow-fade)" />
               <polygon points="0,-4.5 8,0 0,4.5" :fill="color" />
             </g>
 
-            <!-- Config Circle Badge (Right) -->
-            <g style="cursor:pointer" @click.stop="!br.finished && $emit('finish-branch', br.id)">
+            <!-- Finish Branch Icon (Right) - Positioned below the control node -->
+            <g v-if="!br.finished" style="cursor:pointer" @click.stop="$emit('finish-branch', br.id)"
+               :transform="'translate(' + (layout.rightX + getBranchDx(br) - 5) + ',' + (getBranchEndpointY(br, i, true) + 24) + ')'">
+              <rect x="-5" y="-5" width="20" height="28" rx="4" fill="rgba(255,255,255,0.85)" />
+              <path d="M2.88376 17.0266C3.43747 17.0266 3.76266 16.675 3.76266 16.0862V11.0061C4.76462 12.3948 6.39059 13.5022 8.42966 14.2053C9.00095 14.425 9.47555 14.135 9.64255 13.7307C9.80954 13.3352 9.68649 12.8342 9.09762 12.5618C5.9863 11.2698 3.76266 9.32739 3.76266 6.16333V4.35278H5.08981C5.75778 4.35278 5.95114 3.84302 5.55563 3.2981L3.44626 0.336182C3.12985 -0.112061 2.63766 -0.112061 2.32126 0.336182L0.211882 3.2981C-0.192415 3.84302 -0.00784427 4.35278 0.677703 4.35278H2.00485V16.0862C2.00485 16.675 2.33005 17.0266 2.88376 17.0266Z" :fill="color"/>
+            </g>
+            <!-- Контрольна точка circle (Right) -->
+            <g style="cursor:pointer">
               <circle :cx="layout.rightX + getBranchDx(br)"
                       :cy="br.finished ? getRightBranchFinishedPath(br, i).turnY : getBranchEndpointY(br, i, true)"
                       r="9" fill="#ffffff" :stroke="color" stroke-width="3"/>
@@ -370,7 +396,7 @@
 
               <!-- Apple-style Unified Add Pill (Right Branch) -->
               <g v-if="!br.finished" class="anim-row"
-                 :style="{ opacity: editable ? 1 : 0, pointerEvents: editable ? 'auto' : 'none', transform: 'translate(' + (layout.rightX + getBranchDx(br) - 24) + 'px, ' + getBranchNodeY(br, secIdx - 1, i, true) + 'px)' }">
+                 :style="{ opacity: (editable && !localBranchMode) ? 1 : 0, pointerEvents: (editable && !localBranchMode) ? 'auto' : 'none', transition: 'opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1)', transform: 'translate(' + (layout.rightX + getBranchDx(br) - 24) + 'px, ' + getBranchNodeY(br, secIdx - 1, i, true) + 'px)' }">
                 <rect x="0" y="-14" width="64" height="28" rx="14"
                       fill="rgba(255,255,255,0.8)" stroke="#d1d5db" stroke-width="1"
                       style="backdrop-filter: blur(4px);" />
@@ -397,9 +423,8 @@
           </template>
 
           <!-- Direction Arrow (Gradient Stripe Style) -->
-          <g v-if="i > 0"
-             :style="{ opacity: (editable || (seg.stops && seg.stops.length >= 2)) ? 1 : 0, transition: 'opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1)' }"
-             :transform="'translate(' + layout.rightX + ', ' + (layout.rightNodeY[i] + 25) + ') rotate(90)'"
+          <g v-if="i > 0" class="anim-row"
+             :style="{ opacity: (editable || (seg.stops && seg.stops.length >= 2)) ? 1 : 0, transform: 'translate(' + layout.rightX + 'px, ' + (layout.rightNodeY[i] + 25) + 'px) rotate(90deg)', transition: 'all 0.6s cubic-bezier(0.4, 0, 0.2, 1)' }"
              style="pointer-events:none;">
             <polygon points="0,-4.5 42,-4.5 50,0 42,4.5 0,4.5" fill="url(#arrow-fade)" />
             <polygon points="0,-4.5 8,0 0,4.5" :fill="color" />
@@ -442,7 +467,7 @@
 
           <!-- Apple-style Unified Add Pill (Left Rail) -->
           <g class="anim-row"
-             :style="{ opacity: editable ? 1 : 0, pointerEvents: editable ? 'auto' : 'none', transform: 'translate(0px, ' + layout.getLeftAddStopY(seg, layout.leftNodeY[i], layout.leftNodeY[i+1], i === layout.leftSegments.length - 1, segments.indexOf(seg)) + 'px)' }">
+             :style="{ opacity: (editable && !localBranchMode) ? 1 : 0, pointerEvents: (editable && !localBranchMode) ? 'auto' : 'none', transition: 'opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1)', transform: 'translate(0px, ' + layout.getLeftAddStopY(seg, layout.leftNodeY[i], layout.leftNodeY[i+1], i === layout.leftSegments.length - 1, segments.indexOf(seg)) + 'px)' }">
             <rect :x="layout.leftX - 82" y="-14" width="64" height="28" rx="14"
                   fill="rgba(255,255,255,0.8)" stroke="#d1d5db" stroke-width="1"
                   style="backdrop-filter: blur(4px);" />
@@ -473,17 +498,23 @@
                   :d="getLeftBranchFinishedPath(br, i).d"
                   fill="none" :stroke="color" :stroke-width="layout.RAIL_W" stroke-linejoin="round" stroke-linecap="round"/>
             <path v-else
-                  :d="getBranchOutPath(layout.leftX, layout.leftNodeY[i+1] - 40, getBranchDx(br), -1, -1) + ' L ' + (layout.leftX - getBranchDx(br)) + ' ' + getBranchEndpointY(br, i, false)"
+                  :d="getBranchOutPath(layout.leftX, layout.leftNodeY[i+1], getBranchDx(br), -1, -1)"
                   fill="none" :stroke="color" :stroke-width="layout.RAIL_W" stroke-linejoin="round" stroke-linecap="round"/>
 
             <!-- Branch Direction Arrow (Left) -->
-            <g :transform="'translate(' + (layout.leftX - getBranchDx(br)) + ', ' + (layout.leftNodeY[i+1] - 40 - 48) + ') rotate(-90)'">
+            <g class="anim-row" :style="{ transform: 'translate(' + (layout.leftX - getBranchDx(br)) + 'px, ' + (layout.leftNodeY[i+1] - 40 - 48) + 'px) rotate(-90deg)', transition: 'all 0.6s cubic-bezier(0.4, 0, 0.2, 1)' }">
               <polygon points="0,-4.5 42,-4.5 50,0 42,4.5 0,4.5" fill="url(#arrow-fade)" />
               <polygon points="0,-4.5 8,0 0,4.5" :fill="color" />
             </g>
 
-            <!-- Config Circle Badge (Left) -->
-            <g style="cursor:pointer" @click.stop="!br.finished && $emit('finish-branch', br.id)">
+            <!-- Finish Branch Icon (Left) - Positioned below the control node -->
+            <g v-if="!br.finished" style="cursor:pointer" @click.stop="$emit('finish-branch', br.id)"
+               :transform="'translate(' + (layout.leftX - getBranchDx(br) - 5) + ',' + (getBranchEndpointY(br, i, false) + 24) + ')'">
+              <rect x="-5" y="-5" width="20" height="28" rx="4" fill="rgba(255,255,255,0.85)" />
+              <path d="M2.88376 17.0266C3.43747 17.0266 3.76266 16.675 3.76266 16.0862V11.0061C4.76462 12.3948 6.39059 13.5022 8.42966 14.2053C9.00095 14.425 9.47555 14.135 9.64255 13.7307C9.80954 13.3352 9.68649 12.8342 9.09762 12.5618C5.9863 11.2698 3.76266 9.32739 3.76266 6.16333V4.35278H5.08981C5.75778 4.35278 5.95114 3.84302 5.55563 3.2981L3.44626 0.336182C3.12985 -0.112061 2.63766 -0.112061 2.32126 0.336182L0.211882 3.2981C-0.192415 3.84302 -0.00784427 4.35278 0.677703 4.35278H2.00485V16.0862C2.00485 16.675 2.33005 17.0266 2.88376 17.0266Z" :fill="color"/>
+            </g>
+            <!-- Контрольна точка circle (Left) -->
+            <g style="cursor:pointer">
               <circle :cx="layout.leftX - getBranchDx(br)"
                       :cy="br.finished ? getLeftBranchFinishedPath(br, i).turnY : getBranchEndpointY(br, i, false)"
                       r="9" fill="#f5f5f5" :stroke="color" stroke-width="3"/>
@@ -531,7 +562,7 @@
 
               <!-- Apple-style Unified Add Pill (Left Branch) -->
               <g v-if="!br.finished" class="anim-row"
-                 :style="{ opacity: editable ? 1 : 0, pointerEvents: editable ? 'auto' : 'none', transform: 'translate(' + (layout.leftX - getBranchDx(br) + 24) + 'px, ' + getBranchNodeY(br, secIdx - 1, i, false) + 'px)' }">
+                 :style="{ opacity: (editable && !localBranchMode) ? 1 : 0, pointerEvents: (editable && !localBranchMode) ? 'auto' : 'none', transition: 'opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1)', transform: 'translate(' + (layout.leftX - getBranchDx(br) + 24) + 'px, ' + getBranchNodeY(br, secIdx - 1, i, false) + 'px)' }">
                 <rect x="-64" y="-14" width="64" height="28" rx="14"
                       fill="rgba(255,255,255,0.8)" stroke="#d1d5db" stroke-width="1"
                       style="backdrop-filter: blur(4px);" />
@@ -558,9 +589,8 @@
           </template>
 
           <!-- Direction Arrow (Gradient Stripe Style) -->
-          <g v-if="i !== layout.leftSegments.length - 1"
-             :style="{ opacity: (editable || (seg.stops && seg.stops.length >= 2)) ? 1 : 0, transition: 'opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1)' }"
-             :transform="'translate(' + layout.leftX + ', ' + (layout.leftNodeY[i+1] - 25) + ') rotate(-90)'"
+          <g v-if="i !== layout.leftSegments.length - 1" class="anim-row"
+             :style="{ opacity: (editable || (seg.stops && seg.stops.length >= 2)) ? 1 : 0, transform: 'translate(' + layout.leftX + 'px, ' + (layout.leftNodeY[i+1] - 25) + 'px) rotate(-90deg)', transition: 'all 0.6s cubic-bezier(0.4, 0, 0.2, 1)' }"
              style="pointer-events:none;">
             <polygon points="0,-4.5 42,-4.5 50,0 42,4.5 0,4.5" fill="url(#arrow-fade)" />
             <polygon points="0,-4.5 8,0 0,4.5" :fill="color" />
@@ -571,6 +601,19 @@
         <g v-for="(node, idx) in controlNodes" :key="'cnode-' + node.id" class="anim-row"
            :style="{ transform: 'translate(0px, ' + getNodeY(node.id) + 'px)' }">
 
+          <!-- 45-degree Branch Spur Line for Rail Control Nodes (RENDERED FIRST -> UNDER CIRCLES) -->
+          <!-- Right side: 45 degrees down-right (+32, +32) -->
+          <line v-if="node.side === 'right'"
+                :x1="layout.rightX" y1="0"
+                :x2="layout.rightX + 32" y2="32"
+                :stroke="color" :stroke-width="layout.RAIL_W" stroke-linecap="round"
+                :style="{ opacity: (localBranchMode && !nodeHasBranch(node)) ? 1 : 0, transition: 'opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1)' }" />
+          <!-- Left side: 45 degrees up-left (-32, -32) -->
+          <line v-if="node.side === 'left'"
+                :x1="layout.leftX" y1="0"
+                :x2="layout.leftX - 32" y2="-32"
+                :stroke="color" :stroke-width="layout.RAIL_W" stroke-linecap="round"
+                :style="{ opacity: (localBranchMode && !nodeHasBranch(node)) ? 1 : 0, transition: 'opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1)' }" />
 
           <!-- Horizontal light blue line extending INWARDS -->
           <line v-if="node.side === 'left'"
@@ -582,7 +625,7 @@
                 :x2="layout.rightX - 25" y2="0"
                 :stroke="color" stroke-width="3"/>
 
-          <!-- Circle only on the correct side -->
+          <!-- Circle only on the correct side (RENDERED SECOND -> OVER LINE) -->
           <circle v-if="node.side === 'left'" :cx="layout.leftX" cy="0" r="9"
                   fill="#f5f5f5" :stroke="(node.type === 'end' || node.isTerminus) ? '#111827' : color" :stroke-width="(node.type === 'end' || node.isTerminus) ? 4 : 3.5"
                   :class="{ 'terminus-added': (node.type === 'end' || node.isTerminus) }" />
@@ -607,6 +650,22 @@
             <g v-for="(icon, i) in getTerminusIcons(node)" :key="icon.id" :transform="'translate(' + (node.side === 'left' ? (i * 24) : (-i * 24)) + ', 0)'">
               <SvgIcon :name="icon.id" :x="icon.x" :y="icon.y" :width="icon.w" :height="icon.h" class="text-gray-800" />
             </g>
+          </g>
+
+          <!-- Branch Addition Round Button (RENDERED THIRD -> OVER END OF LINE) -->
+          <g v-if="node.side === 'right'"
+             :style="{ opacity: (localBranchMode && !nodeHasBranch(node)) ? 1 : 0, transform: 'translate(' + (layout.rightX + 32) + 'px, 32px) scale(' + ((localBranchMode && !nodeHasBranch(node)) ? 1 : 0.5) + ')', transition: 'opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1), transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)', pointerEvents: (localBranchMode && !nodeHasBranch(node)) ? 'auto' : 'none' }"
+             style="cursor:pointer;"
+             @click.stop="$emit('add-branch', getSegIdxForNode(node))">
+            <circle cx="0" cy="0" r="9" fill="#f5f5f5" :stroke="color" stroke-width="3.5" class="shadow-sm transition"/>
+            <SvgIcon name="plus" :x="-5" :y="-5" :width="10" :height="10" class="text-gray-900 pointer-events-none" />
+          </g>
+          <g v-if="node.side === 'left'"
+             :style="{ opacity: (localBranchMode && !nodeHasBranch(node)) ? 1 : 0, transform: 'translate(' + (layout.leftX - 32) + 'px, -32px) scale(' + ((localBranchMode && !nodeHasBranch(node)) ? 1 : 0.5) + ')', transition: 'opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1), transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)', pointerEvents: (localBranchMode && !nodeHasBranch(node)) ? 'auto' : 'none' }"
+             style="cursor:pointer;"
+             @click.stop="$emit('add-branch', getSegIdxForNode(node))">
+            <circle cx="0" cy="0" r="9" fill="#f5f5f5" :stroke="color" stroke-width="3.5" class="shadow-sm transition"/>
+            <SvgIcon name="plus" :x="-5" :y="-5" :width="10" :height="10" class="text-gray-900 pointer-events-none" />
           </g>
         </g>
 
@@ -846,47 +905,65 @@ function getNodeY(nodeId) {
   return nodeYMap.value[nodeId] ?? 0;
 }
 
+function getSegIdxForNode(node) {
+  if (!layout.value || !node) return 0;
+  if (node.side === 'right') {
+    const idx = layout.value.rightNodes.findIndex(n => n?.id === node.id);
+    if (idx !== -1 && layout.value.rightSegments[idx]) {
+      return segments.value.indexOf(layout.value.rightSegments[idx]);
+    }
+  } else if (node.side === 'left') {
+    const idx = layout.value.leftNodes.findIndex(n => n?.id === node.id);
+    if (idx !== -1 && layout.value.leftSegments[idx]) {
+      return segments.value.indexOf(layout.value.leftSegments[idx]);
+    }
+  }
+  return 0;
+}
+
 function getBranchOutPath(x, y, dx, dirX, dirY) {
   const absDx = Math.abs(dx);
-  const r = Math.min(20, absDx / 2);
-  const y1 = y + 8 * dirY;
-  const y2 = y1 + r * dirY;
-  const x2 = x + r * dirX;
   const endX = x + dx * dirX;
-  const lineEndX = endX - r * dirX;
-  const endY = y2 + r * dirY;
-  return `M ${x} ${y} 
-          L ${x} ${y1} 
-          Q ${x} ${y2} ${x2} ${y2} 
-          L ${lineEndX} ${y2} 
-          Q ${endX} ${y2} ${endX} ${endY}`;
+  
+  if (absDx <= 70) {
+    // 45° diagonal stem (2 cells = 64px), smooth 16px corner round 'a', 1 cell (32px) vertical to y+96
+    const r = 16;
+    const sweep = (dirX * dirY > 0) ? 1 : 0;
+    return `M ${x} ${y} 
+            L ${x + (64 - r) * dirX} ${y + (64 - r) * dirY} 
+            a ${r} ${r} 0 0 ${sweep} ${r * dirX} ${r * dirY} 
+            L ${x + 64 * dirX} ${y + 96 * dirY}`;
+  } else {
+    // Merge branch (dx = 192, 6 grid cells)
+    const transitionY = y + 64 * dirY + 32 * dirY;
+    const lineEndX = endX - 16 * dirX;
+    return `M ${x} ${y} 
+            L ${x + 64 * dirX} ${y + 64 * dirY} 
+            L ${x + 64 * dirX} ${transitionY}
+            L ${lineEndX} ${transitionY} 
+            L ${endX} ${transitionY + 32 * dirY}`;
+  }
 }
 
 function getBranchInPath(x, y, dx, dirX, dirY) {
-  const absDx = Math.abs(dx);
-  const r = Math.min(20, absDx / 2);
+  const r = 16;
   const startX = x + dx * dirX;
-  const startY = y - (8 + 2 * r) * dirY;
-  const yArcTop = startY + r * dirY;
-  const lineEndX = x + r * dirX;
-  const yArcBot = y - 8 * dirY;
-  return `L ${startX} ${startY}
-          Q ${startX} ${yArcTop} ${startX - r * dirX} ${yArcTop}
-          L ${lineEndX} ${yArcTop}
-          Q ${x} ${yArcTop} ${x} ${yArcBot}
+  const sweep = (dirX * dirY > 0) ? 0 : 1;
+  return `L ${startX} ${y - (64 + r) * dirY} 
+          a ${r} ${r} 0 0 ${sweep} ${-r * dirX} ${r * dirY} 
           L ${x} ${y}`;
 }
 
 function getBranchNodeY(br, bNIdx, i, isRight) {
   if (!layout.value) return 0;
   const l = layout.value;
-  const startY = isRight ? (l.rightNodeY[i] + 40) : (l.leftNodeY[i+1] - 40);
+  const startY = isRight ? (l.rightNodeY[i] + 96) : (l.leftNodeY[i+1] - 96);
   
-  let yOffset = 48;
+  let yOffset = 0;
   const sections = br.sections || [];
   for (let si = 0; si <= bNIdx; si++) {
     const stopsCount = (sections[si]?.stops || []).length;
-    yOffset += (stopsCount > 0 ? (35 + stopsCount * 32) : 25);
+    yOffset += (stopsCount * 32);
   }
   return isRight ? (startY + yOffset) : (startY - yOffset);
 }
@@ -894,98 +971,94 @@ function getBranchNodeY(br, bNIdx, i, isRight) {
 function getBranchStopY(br, secIdx, bStIdx, i, isRight) {
   if (!layout.value) return 0;
   const l = layout.value;
-  const startY = isRight ? (l.rightNodeY[i] + 40) : (l.leftNodeY[i+1] - 40);
+  const startY = isRight ? (l.rightNodeY[i] + 96) : (l.leftNodeY[i+1] - 96);
   
-  let yOffset = 48;
+  let yOffset = 0;
   const sections = br.sections || [];
   for (let si = 0; si < secIdx - 1; si++) {
     const stopsCount = (sections[si]?.stops || []).length;
-    yOffset += (stopsCount > 0 ? (35 + stopsCount * 32) : 25);
+    yOffset += (stopsCount * 32);
   }
-  yOffset += 20 + bStIdx * 32;
+  yOffset += bStIdx * 32;
   return isRight ? (startY + yOffset) : (startY - yOffset);
 }
 
 function getBranchAddStopY(br, secIdx, i, isRight) {
   if (!layout.value) return 0;
   const l = layout.value;
-  const startY = isRight ? (l.rightNodeY[i] + 40) : (l.leftNodeY[i+1] - 40);
+  const startY = isRight ? (l.rightNodeY[i] + 96) : (l.leftNodeY[i+1] - 96);
   
-  let yOffset = 48;
+  let yOffset = 0;
   const sections = br.sections || [];
   for (let si = 0; si < secIdx - 1; si++) {
     const stopsCount = (sections[si]?.stops || []).length;
-    yOffset += (stopsCount > 0 ? (35 + stopsCount * 32) : 25);
+    yOffset += (stopsCount * 32);
   }
   const stopsCount = (sections[secIdx - 1]?.stops || []).length;
-  yOffset += (stopsCount > 0 ? (20 + stopsCount * 32 + 10) : 20);
+  yOffset += (stopsCount * 32);
   return isRight ? (startY + yOffset) : (startY - yOffset);
 }
 
 function getBranchAddNodeY(br, secIdx, i, isRight) {
-  return getBranchAddStopY(br, secIdx, i, isRight) + (isRight ? 28 : -28);
+  return getBranchAddStopY(br, secIdx, i, isRight) + (isRight ? 32 : -32);
 }
 
 function getBranchEndpointY(br, i, isRight) {
-  const secIdx = getBranchNodesLength(br) + 1;
-  return getBranchAddNodeY(br, secIdx, i, isRight) + (isRight ? 25 : -25);
+  if (!layout.value) return 0;
+  const l = layout.value;
+  // Start right at the end of the branch out path (diagonal 64px + vertical 32px = 96px)
+  const baseY = isRight ? (l.rightNodeY[i] + 96) : (l.leftNodeY[i+1] - 96);
+  
+  // Add offset only for actual stops and nodes content
+  let yOffset = 0;
+  const sections = br.sections || [];
+  const nodesLen = getBranchNodesLength(br);
+  for (let si = 0; si <= nodesLen; si++) {
+    const stopsCount = (sections[si]?.stops || []).length;
+    yOffset += (stopsCount * 32);
+  }
+  // Add space for each node
+  yOffset += nodesLen * 32;
+  
+  return isRight ? (baseY + yOffset) : (baseY - yOffset);
 }
 
 function getBranchDx(br) {
-  return (br.mergeConfigured === 'add_inside' || (br.finished && br.targetType && br.targetType !== 'current')) ? 190 : 45;
+  return (br.mergeConfigured === 'add_inside' || (br.finished && br.targetType && br.targetType !== 'current')) ? 192 : 64;
 }
 
 function getRightBranchFinishedPath(br, i) {
   if (!layout.value) return { d: '', arrowY: 0, turnY: 0, mergeY: 0 };
   const l = layout.value;
-  const startY = l.rightNodeY[i] + 40;
+  const startY = l.rightNodeY[i];
   
   const isType1 = br.mergeConfigured === 'add_inside';
   const isType2 = br.targetType && br.targetType !== 'current';
   const dx = getBranchDx(br);
   
+  let contentOffset = 0;
   const sections = br.sections || [];
-  const sectionCount = Math.max((br.nodes || []).length + 1, 1);
-  let branchHeight = 48 + 25;
-  for (let si = 0; si < sectionCount; si++) {
+  const nodesLen = getBranchNodesLength(br);
+  for (let si = 0; si <= nodesLen; si++) {
     const stopsCount = (sections[si]?.stops || []).length;
-    branchHeight += (stopsCount > 0 ? (35 + stopsCount * 32) : 25);
+    contentOffset += (stopsCount * 32);
   }
-  const nodeCount = (br.nodes || []).length;
-  if (nodeCount > 0) branchHeight += nodeCount * 28;
-  branchHeight = Math.max(135, branchHeight);
-  
-  const subBrs = subBranches(br.id);
-  const subBrPadding = subBrs.reduce((acc, sb) => {
-    const sbSections = sb.sections || [];
-    const sbSectionCount = Math.max((sb.nodes || []).length + 1, 1);
-    let sbH = sb.finished ? 100 : 50;
-    for (let si = 0; si < sbSectionCount; si++) {
-      sbH += ((sbSections[si]?.stops || []).length) * 32 + 25;
-    }
-    return acc + sbH;
-  }, 0);
-  
-  const r = Math.min(20, Math.abs(dx) / 2);
-  const outH = 8 + 2 * r;
-  const turnY = startY + branchHeight + subBrPadding - outH;
-  
-  let targetNodeY = turnY + outH;
-  if (br.targetType === 'node' && br.targetNodeId) {
-    const tIdx = l.rightNodes.findIndex(n => n.id === br.targetNodeId);
-    if (tIdx !== -1) targetNodeY = l.rightNodeY[tIdx];
-  } else if (br.targetType === 'bottom_arc') {
-    targetNodeY = l.rightNodeY[l.rightNodeY.length - 1] + 80;
-  }
-  
-  const mergeY = isType2 ? targetNodeY : (turnY + outH);
+  contentOffset += nodesLen * 32;
+
+  const endpointY = startY + 96;
+  const turnY = endpointY + 32 + contentOffset;
+  const mergeY = turnY + 64;
+  const r = 16;
   
   return {
-    d: `${getBranchOutPath(l.rightX, startY, dx, 1, 1)}
-        L ${l.rightX + dx} ${mergeY - outH}
-        ${getBranchInPath(l.rightX, mergeY, dx, 1, 1)}`,
+    d: `M ${l.rightX} ${startY}
+        L ${l.rightX + 64 - r} ${startY + 64 - r}
+        a ${r} ${r} 0 0 1 ${r} ${r}
+        L ${l.rightX + 64} ${turnY}
+        a ${r} ${r} 0 0 1 ${-r} ${r}
+        L ${l.rightX} ${mergeY}`,
     arrowY: mergeY - 15,
-    turnY: mergeY - outH,
+    turnY: turnY,
     mergeY: mergeY
   };
 }
@@ -993,57 +1066,44 @@ function getRightBranchFinishedPath(br, i) {
 function getLeftBranchFinishedPath(br, i) {
   if (!layout.value) return { d: '', arrowY: 0, turnY: 0, mergeY: 0 };
   const l = layout.value;
-  const startY = l.leftNodeY[i+1] - 40;
+  const startY = l.leftNodeY[i+1];
   
   const isType2 = br.targetType && br.targetType !== 'current';
   const dx = getBranchDx(br);
   
+  let contentOffset = 0;
   const sections = br.sections || [];
-  const sectionCount = Math.max((br.nodes || []).length + 1, 1);
-  let branchHeight = 48 + 25;
-  for (let si = 0; si < sectionCount; si++) {
+  const nodesLen = getBranchNodesLength(br);
+  for (let si = 0; si <= nodesLen; si++) {
     const stopsCount = (sections[si]?.stops || []).length;
-    branchHeight += (stopsCount > 0 ? (35 + stopsCount * 32) : 25);
+    contentOffset += (stopsCount * 32);
   }
-  const nodeCount = (br.nodes || []).length;
-  if (nodeCount > 0) branchHeight += nodeCount * 28;
-  branchHeight = Math.max(135, branchHeight);
-  
-  const subBrs = subBranches(br.id);
-  const subBrPadding = subBrs.reduce((acc, sb) => {
-    const sbSections = sb.sections || [];
-    const sbSectionCount = Math.max((sb.nodes || []).length + 1, 1);
-    let sbH = sb.finished ? 100 : 50;
-    for (let si = 0; si < sbSectionCount; si++) {
-      sbH += ((sbSections[si]?.stops || []).length) * 32 + 25;
-    }
-    return acc + sbH;
-  }, 0);
-  
-  const r = Math.min(20, Math.abs(dx) / 2);
-  const outH = 8 + 2 * r;
-  const turnY = startY - branchHeight - subBrPadding + outH;
-  
-  let targetNodeY = turnY - outH;
-  if (br.targetType === 'node' && br.targetNodeId) {
-    const tIdx = l.leftNodes.findIndex(n => n.id === br.targetNodeId);
-    if (tIdx !== -1) targetNodeY = l.leftNodeY[tIdx];
-  }
-  const mergeY = isType2 ? targetNodeY : (turnY - outH);
+  contentOffset += nodesLen * 32;
+
+  const endpointY = startY - 96;
+  const turnY = endpointY - 32 - contentOffset;
+  const mergeY = turnY - 64;
+  const r = 16;
   
   return {
-    d: `${getBranchOutPath(l.leftX, startY, dx, -1, -1)}
-        L ${l.leftX - dx} ${mergeY + outH}
-        ${getBranchInPath(l.leftX, mergeY, dx, -1, -1)}`,
+    d: `M ${l.leftX} ${startY}
+        L ${l.leftX - (64 - r)} ${startY - (64 - r)}
+        a ${r} ${r} 0 0 1 ${-r} ${-r}
+        L ${l.leftX - 64} ${turnY}
+        a ${r} ${r} 0 0 1 ${r} ${-r}
+        L ${l.leftX} ${mergeY}`,
     arrowY: mergeY + 15,
-    turnY: mergeY + outH,
+    turnY: turnY,
     mergeY: mergeY
   };
 }
 
 const layout = computed(() => {
   if (!nodes.value.length) return null;
-  return new OvalLayout(nodes.value, segments.value, branches.value, { editable: props.editable });
+  return new OvalLayout(nodes.value, segments.value, branches.value, {
+    editable: props.editable,
+    isBranchMode: localBranchMode.value
+  });
 });
 
 function branchesForSeg(sIdx) {
@@ -1056,6 +1116,18 @@ function subBranches(pId) {
 
 function hasBranchForSeg(sIdx) {
   return (branches.value || []).some(b => !b.parentBranchId && b.segIdx === sIdx);
+}
+
+function nodeHasBranch(node) {
+  if (!branches.value || !branches.value.length || !node) return false;
+  if (firstNode.value && node.id === firstNode.value.id) {
+    return branches.value.some(b => b.segIdx === 0 && !b.parentBranchId);
+  }
+  if (lastNode.value && node.id === lastNode.value.id) {
+    return branches.value.some(b => b.segIdx === (segments.value.length - 1) && !b.parentBranchId);
+  }
+  const sIdx = getSegIdxForNode(node);
+  return branches.value.some(b => (b.segIdx === sIdx || b.parentNodeId === node.id) && !b.parentBranchId);
 }
 
 function hasSubBranch(pId, nId) {
@@ -1261,18 +1333,18 @@ defineExpose({
 <style scoped>
 /* Hardware-accelerated transitions targeted strictly to animated structural elements */
 .anim-line {
-  transition: stroke-dashoffset 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: stroke-dashoffset 0.6s cubic-bezier(0.4, 0, 0.2, 1);
   will-change: stroke-dashoffset;
 }
 
 .anim-row,
 .bottom-cap-group {
-  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1);
   will-change: transform, opacity;
 }
 
 .anim-rect {
-  transition: height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: height 0.6s cubic-bezier(0.4, 0, 0.2, 1);
   will-change: height;
 }
 
