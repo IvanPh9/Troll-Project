@@ -107,11 +107,20 @@ const routeData = computed(() => ({
 
 // Control nodes for segment settings (allows assigning DB stop)
 const controlNodes = computed(() => nodes.value.filter(n => n.type === 'control'));
-// Control nodes relevant to the currently edited segment (by side or terminus)
-const segmentControlNodes = computed(() => {
+
+// Control nodes forming the currently edited segment
+const activeSegmentNodes = computed(() => {
   if (!activeSegment.value) return [];
-  const side = activeSegment.value.side || 'right';
-  return nodes.value.filter(n => (n.side === side) || n.isTerminus);
+  const seg = activeSegment.value;
+  const side = seg.side || 'right';
+  const sideNodes = nodes.value.filter(n => n.type === 'end' || n.side === side || !n.side);
+  const sideSegs = segments.value.filter(s => s.side === side || !s.side);
+  const idx = sideSegs.findIndex(s => s.id === seg.id);
+  if (idx === -1 || !sideNodes[idx] || !sideNodes[idx+1]) return [];
+  if (side === 'left') {
+    return [sideNodes[idx+1], sideNodes[idx]];
+  }
+  return [sideNodes[idx], sideNodes[idx+1]];
 });
 
 /* ─────────── Mutations ─────────── */
@@ -127,11 +136,26 @@ function removeStop(sIdx, stIdx) {
   segments.value[sIdx].stops.splice(stIdx, 1);
 }
 
-function addControlNode(side = 'right', explicitSegIdx = -1) {
+function addControlNode(side = 'right', explicitSegIdx = -1, posMode = 'before') {
   const newId = Date.now();
   const ctrlCount = nodes.value.filter(n => n.type === 'control').length;
 
   let targetSegIdx = explicitSegIdx;
+
+  if (posMode === 'after' && targetSegIdx !== -1) {
+    let nextSegIdx = -1;
+    for (let i = targetSegIdx + 1; i < segments.value.length; i++) {
+      if (segments.value[i].side === side || !segments.value[i].side) {
+        nextSegIdx = i;
+        break;
+      }
+    }
+    if (nextSegIdx !== -1) {
+      targetSegIdx = nextSegIdx;
+    } else {
+      targetSegIdx = -1;
+    }
+  }
   
   if (targetSegIdx === -1) {
     if (side === 'left') {
@@ -188,9 +212,11 @@ function addControlNode(side = 'right', explicitSegIdx = -1) {
         { id: newId + 2, travelTime: old.travelTime - half, interval: old.interval, intervalMax: old.intervalMax, stops: [...old.stops], side: oldSide }
       );
     } else {
+      const firstStops = posMode === 'after' ? [] : [...old.stops];
+      const secondStops = posMode === 'after' ? [...old.stops] : [];
       segments.value.splice(targetSegIdx, 1,
-        { id: newId + 1, travelTime: half,                  interval: old.interval, intervalMax: old.intervalMax, stops: [...old.stops], side: oldSide },
-        { id: newId + 2, travelTime: old.travelTime - half, interval: old.interval, intervalMax: old.intervalMax, stops: [], side: oldSide }
+        { id: newId + 1, travelTime: half,                  interval: old.interval, intervalMax: old.intervalMax, stops: firstStops, side: oldSide },
+        { id: newId + 2, travelTime: old.travelTime - half, interval: old.interval, intervalMax: old.intervalMax, stops: secondStops, side: oldSide }
       );
     }
 
@@ -699,7 +725,7 @@ const canvasRef = ref(null);
         @add-sub-branch="(pId, pNodeId) => addBranch(null, pId, pNodeId)"
         @finish-branch="(brId) => finishBranch(brId)"
         @config-branch="(br) => configBranch(br)"
-        @add-node="(side, segIdx) => addControlNode(side, segIdx)"
+        @add-node="(side, segIdx, pos) => addControlNode(side, segIdx, pos)"
         @add-branch-node="addBranchNode"
         @add-branch-stop="(brId, si) => addBranchStop(brId, si)"
         @edit-branch-stop="editBranchStop"
@@ -1209,10 +1235,11 @@ const canvasRef = ref(null);
               </div>
             </div>
 
-            <!-- Control nodes -->
-            <div v-if="controlNodes.length > 0" class="mt-4 pt-4 border-t border-gray-100">
-               <div v-for="node in controlNodes" :key="'cn-' + node.id" class="mt-2 flex items-center gap-1">
-                 <span class="text-xs font-medium w-1/3">{{ node.name }}</span>
+            <!-- Control nodes forming this segment -->
+            <div v-if="activeSegmentNodes.length > 0" class="mt-4 pt-4 border-t border-gray-100">
+               <h4 class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Контрольні точки ділянки</h4>
+               <div v-for="node in activeSegmentNodes" :key="'cn-' + node.id" class="mt-2 flex items-center gap-1">
+                 <span class="text-xs font-medium w-1/3 truncate" :title="node.name">{{ node.name }}</span>
                  <StopSelector 
                    v-model="node.realId" 
                    :stops="availableStops" 
