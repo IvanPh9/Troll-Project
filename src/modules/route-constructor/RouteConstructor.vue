@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useStopsStore } from '@/stores/stops';
 import RouteCanvas from './components/RouteCanvas.vue';
@@ -112,6 +112,9 @@ const controlNodes = computed(() => nodes.value.filter(n => n.type === 'control'
 const activeSegmentNodes = computed(() => {
   if (!activeSegment.value) return [];
   const seg = activeSegment.value;
+  if (seg.isBranch) {
+    return [seg.startNode, seg.endNode].filter(Boolean);
+  }
   const side = seg.side || 'right';
   const sideNodes = nodes.value.filter(n => n.type === 'end' || n.side === side || !n.side);
   const sideSegs = segments.value.filter(s => s.side === side || !s.side);
@@ -448,6 +451,7 @@ function removeBranchNode(brId, bNIdx) {
   }
 }
 /* ─────────── Edit overlays ─────────── */
+/* ─────────── Edit overlays ─────────── */
 const editSeg  = ref(null);
 const editNode = ref(null);
 
@@ -474,7 +478,6 @@ const firstTerminus = computed(() => {
 const totalTime  = computed(() => {
   const travel = segments.value.reduce((a, s) => a + Number(s.travelTime || 0), 0);
   let wait = endNodes.value.reduce((a, n) => a + Number(n.waitMin || 0), 0);
-  // Turnaround time starts from the first terminus, so we don't include its wait time
   if (firstTerminus.value) {
     wait -= Number(firstTerminus.value.waitMin || 0);
   }
@@ -485,6 +488,9 @@ const topNode    = computed(() => nodes.value.find(n => !n.side) || endNodes.val
 const bottomNode = computed(() => nodes.value.filter(n => !n.side)[1] || nodes.value.find(n => !n.side) || endNodes.value[1]);
 
 const getSegmentName = (seg) => {
+  if (seg.isBranch && seg.startNode && seg.endNode) {
+    return `${seg.startNode.name} → ${seg.endNode.name}`;
+  }
   const side = seg.side || 'right';
   const sideNodes = nodes.value.filter(n => n.type === 'end' || n.side === side || !n.side);
   const sideSegs = segments.value.filter(s => s.side === side || !s.side);
@@ -500,7 +506,22 @@ const getSegmentName = (seg) => {
 const activeSegmentId = computed(() => route.query.segmentId);
 const activeSegment = computed(() => {
   if (!activeSegmentId.value) return null;
-  const id = parseInt(activeSegmentId.value);
+  const rawId = activeSegmentId.value;
+  if (String(rawId).startsWith('br_sec_')) {
+    for (const br of branches.value) {
+      if (br.sections) {
+        for (const sec of br.sections) {
+          if (String(sec.id) === String(rawId)) {
+            sec.isBranch = true;
+            if (!sec.startNode) sec.startNode = { id: 'br_sn_' + sec.id, name: "З'єднання / Початок", realId: null };
+            if (!sec.endNode) sec.endNode = { id: 'br_en_' + sec.id, name: "Кінцева розгалудження", realId: null };
+            return sec;
+          }
+        }
+      }
+    }
+  }
+  const id = parseInt(rawId);
   let found = segments.value.find(s => s.id === id);
   if (found) return found;
   // Also search branches if needed
@@ -679,8 +700,15 @@ const allSegmentsList = computed(() => {
       
       const secStops = (br.sections && br.sections[si] && br.sections[si].stops) ? br.sections[si].stops : [];
       
+      if (!br.sections) br.sections = [];
+      if (!br.sections[si]) {
+        br.sections[si] = { id: 'br_sec_' + br.id + '_' + si, stops: [], travelTime: 5, interval: '20', intervalMax: '25' };
+      }
+      const secObj = br.sections[si];
+      if (!secObj.id) secObj.id = 'br_sec_' + br.id + '_' + si;
+
       list.push({
-        id: 'br-seg-' + br.id + '-' + si,
+        id: secObj.id,
         name: secName,
         travelTime: 5,
         interval: '15',
@@ -1116,7 +1144,7 @@ const canvasRef = ref(null);
                   <span v-if="segItem.isBranch" class="px-1.5 py-0.5 text-[8px] font-bold uppercase rounded bg-purple-100 text-purple-700 shrink-0">Гілка</span>
                   {{ segItem.name }}
                 </span>
-                <button v-if="!segItem.isBranch" @click="router.push({ query: { ...route.query, segmentId: segItem.id } })"
+                <button @click="router.push({ query: { ...route.query, segmentId: segItem.id } })"
                   class="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full border border-blue-200 text-blue-500 hover:bg-blue-50 transition-colors">
                   Налаштувати
                 </button>
