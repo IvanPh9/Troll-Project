@@ -351,10 +351,10 @@
           <template v-for="(br, brIdx) in branchesForSeg(segments.indexOf(seg))" :key="'rbr-' + br.id">
             <path v-if="br.finished"
                   :d="getRightBranchFinishedPath(br, i).d"
-                  fill="none" :stroke="color" :stroke-width="layout.RAIL_W" stroke-linejoin="round" stroke-linecap="round"/>
+                  fill="none" style="cursor:pointer;" @click.stop="selectBranchSection(br, 0, i, true)" :stroke="color" :stroke-width="layout.RAIL_W" stroke-linejoin="round" stroke-linecap="round"/>
             <path v-else
                   :d="getBranchOutPath(layout.rightX, layout.rightNodeY[i], getBranchDx(br), 1, 1, getBranchEndpointY(br, i, true))"
-                  fill="none" :stroke="color" :stroke-width="layout.RAIL_W" stroke-linejoin="round" stroke-linecap="round"/>
+                  fill="none" style="cursor:pointer;" @click.stop="selectBranchSection(br, 0, i, true)" :stroke="color" :stroke-width="layout.RAIL_W" stroke-linejoin="round" stroke-linecap="round"/>
 
             <!-- Branch Direction Arrow (Right) -->
             <g class="anim-row" :style="{ transform: 'translate(' + (layout.rightX + getBranchDx(br)) + 'px, ' + (layout.rightNodeY[i] + 40 + 48) + 'px) rotate(90deg)', transition: 'all 0.6s cubic-bezier(0.4, 0, 0.2, 1)' }">
@@ -368,16 +368,8 @@
               <rect x="-5" y="-5" width="20" height="28" rx="4" fill="rgba(255,255,255,0.85)" />
               <path d="M2.88376 17.0266C3.43747 17.0266 3.76266 16.675 3.76266 16.0862V11.0061C4.76462 12.3948 6.39059 13.5022 8.42966 14.2053C9.00095 14.425 9.47555 14.135 9.64255 13.7307C9.80954 13.3352 9.68649 12.8342 9.09762 12.5618C5.9863 11.2698 3.76266 9.32739 3.76266 6.16333V4.35278H5.08981C5.75778 4.35278 5.95114 3.84302 5.55563 3.2981L3.44626 0.336182C3.12985 -0.112061 2.63766 -0.112061 2.32126 0.336182L0.211882 3.2981C-0.192415 3.84302 -0.00784427 4.35278 0.677703 4.35278H2.00485V16.0862C2.00485 16.675 2.33005 17.0266 2.88376 17.0266Z" :fill="color"/>
             </g>
-            <!-- Контрольна точка circle (Right) -->
-            <g style="cursor:pointer">
-              <circle :cx="layout.rightX + getBranchDx(br)"
-                      :cy="br.finished ? getRightBranchFinishedPath(br, i).turnY : getBranchEndpointY(br, i, true)"
-                      r="9" fill="#ffffff" :stroke="color" stroke-width="3"/>
-              <text :x="layout.rightX + getBranchDx(br) + 18"
-                    :y="(br.finished ? getRightBranchFinishedPath(br, i).turnY : getBranchEndpointY(br, i, true)) + 4"
-                    font-size="13" font-weight="700" fill="#111827" text-anchor="start"
-                    style="pointer-events:none;">Контрольна точка</text>
-            </g>
+
+
 
             <!-- Type 1 Merge Node on Main Line -->
             <g v-if="br.finished && br.mergeConfigured === 'add_inside'">
@@ -403,6 +395,16 @@
 
             <!-- Branch Stops (Per Section) -->
             <template v-for="secIdx in (getBranchNodesLength(br) + 1)" :key="'rbrsec-' + secIdx">
+              <!-- Clickable Branch Section Overlay (Right) -->
+              <rect :x="layout.rightX + getBranchDx(br) - 12"
+                    :y="Math.min(getBranchSectionStartY(br, secIdx, i, true), getBranchSectionEndY(br, secIdx, i, true))"
+                    width="24"
+                    :height="Math.max(24, Math.abs(getBranchSectionEndY(br, secIdx, i, true) - getBranchSectionStartY(br, secIdx, i, true)))"
+                    fill="transparent"
+                    style="cursor: pointer;"
+                    title="Налаштувати ділянку розгалудження"
+                    @click.stop="selectBranchSection(br, secIdx - 1, i, true)" />
+
               <g v-for="(bStop, bStIdx) in getBranchSectionStops(br, secIdx)" :key="'rbrst-' + bStop.id" style="cursor:pointer;"
                  @click.stop="$emit('edit-branch-stop', br.id, secIdx - 1, bStIdx)">
                 <line :x1="layout.rightX + getBranchDx(br)"
@@ -418,27 +420,20 @@
               <!-- Apple-style Unified Add Pill (Right Branch) -->
               <g class="anim-row"
                  :style="{ opacity: (editable && !localBranchMode) ? 1 : 0, pointerEvents: (editable && !localBranchMode) ? 'auto' : 'none', transition: 'opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1)', transform: 'translate(' + (layout.rightX + getBranchDx(br) + 16) + 'px, ' + getBranchAddStopY(br, secIdx, i, true) + 'px)' }">
-                <rect x="0" y="-14" width="64" height="28" rx="14"
-                      fill="rgba(255,255,255,0.8)" stroke="#d1d5db" stroke-width="1"
-                      style="backdrop-filter: blur(4px);" />
-                
-                <!-- Left Half: Add Stop -->
-                <g style="cursor:pointer;" @click.stop="$emit('add-branch-stop', br.id, secIdx - 1)">
-                  <rect x="0" y="-14" width="32" height="28" fill="transparent" rx="14"/>
-                  <g transform="translate(19.5, -7)" fill="#4b5563">
-                    <path transform="scale(0.5)" d="M5.78869 27.4289C6.5345 27.4289 7.07691 26.9543 7.07691 26.0616V17.3943C7.07691 17.0101 7.25772 16.7841 7.56282 16.7841C7.86793 16.7841 8.06003 17.0101 8.06003 17.3943V26.0616C8.06003 26.9543 8.60244 27.4289 9.34826 27.4289C10.0828 27.4289 10.6252 26.9543 10.6252 26.0616V11.4165C10.6252 11.1114 10.7721 10.9306 11.0207 10.9306C11.258 10.9306 11.4162 11.1114 11.4162 11.4165V17.4282C11.4162 18.2305 11.8908 18.6825 12.5688 18.6825C13.2468 18.6825 13.7101 18.2305 13.7101 17.4282V11.5521C13.7101 7.9699 11.6874 7.04328 7.67583 7.04328H5.93559C5.15588 7.04328 4.76037 6.93027 4.13885 6.47827L2.64723 5.42735L2.37602 1.20106C2.31952 0.387446 1.79971 -0.0419624 1.1217 0.00323846C0.432382 0.0371391 -0.0422274 0.534349 0.00297345 1.33666L0.274179 5.52905C0.33068 6.44437 0.692287 6.97548 1.2573 7.39358L3.96935 9.37112C4.36486 9.65363 4.50046 10.0039 4.50046 10.4559V26.0616C4.50046 26.9543 5.05417 27.4289 5.78869 27.4289ZM7.67583 5.91325C9.17875 5.91325 10.3879 4.67023 10.3879 3.2125C10.3879 1.70957 9.17875 0.489148 7.67583 0.489148C6.16159 0.489148 4.97507 1.70957 4.97507 3.2125C4.97507 4.69283 6.16159 5.91325 7.67583 5.91325Z"/>
+                <rect x="0" y="-14" width="64" height="28" rx="14" fill="rgba(255,255,255,0.8)" stroke="#d1d5db" stroke-width="1" style="backdrop-filter: blur(4px);" />
+                  <g style="cursor:pointer;" title="Додати зупинку" @click.stop="$emit('add-branch-stop', br.id, secIdx - 1)">
+                    <rect x="0" y="-14" width="32" height="28" fill="transparent" rx="14"/>
+                    <g transform="translate(19.5, -7)" fill="#4b5563">
+                      <path transform="scale(0.5)" d="M5.78869 27.4289C6.5345 27.4289 7.07691 26.9543 7.07691 26.0616V17.3943C7.07691 17.0101 7.25772 16.7841 7.56282 16.7841C7.86793 16.7841 8.06003 17.0101 8.06003 17.3943V26.0616C8.06003 26.9543 8.60244 27.4289 9.34826 27.4289C10.0828 27.4289 10.6252 26.9543 10.6252 26.0616V11.4165C10.6252 11.1114 10.7721 10.9306 11.0207 10.9306C11.258 10.9306 11.4162 11.1114 11.4162 11.4165V17.4282C11.4162 18.2305 11.8908 18.6825 12.5688 18.6825C13.2468 18.6825 13.7101 18.2305 13.7101 17.4282V11.5521C13.7101 7.9699 11.6874 7.04328 7.67583 7.04328H5.93559C5.15588 7.04328 4.76037 6.93027 4.13885 6.47827L2.64723 5.42735L2.37602 1.20106C2.31952 0.387446 1.79971 -0.0419624 1.1217 0.00323846C0.432382 0.0371391 -0.0422274 0.534349 0.00297345 1.33666L0.274179 5.52905C0.33068 6.44437 0.692287 6.97548 1.2573 7.39358L3.96935 9.37112C4.36486 9.65363 4.50046 10.0039 4.50046 10.4559V26.0616C4.50046 26.9543 5.05417 27.4289 5.78869 27.4289ZM7.67583 5.91325C9.17875 5.91325 10.3879 4.67023 10.3879 3.2125C10.3879 1.70957 9.17875 0.489148 7.67583 0.489148C6.16159 0.489148 4.97507 1.70957 4.97507 3.2125C4.97507 4.69283 6.16159 5.91325 7.67583 5.91325Z"/>
+                    </g>
                   </g>
-                </g>
-
-                <line x1="32" y1="-10" x2="32" y2="10" stroke="#9ca3af" stroke-width="1" />
-
-                <!-- Right Half: Add Node -->
-                <g style="cursor:pointer;" @click.stop="$emit('add-branch-node', br.id)">
-                  <rect x="32" y="-14" width="32" height="28" fill="transparent" rx="14"/>
-                  <g transform="translate(42.7, -5.3)" fill="#4b5563">
-                    <path transform="scale(0.55)" d="M1.00195 8.36719H6.36328V13.7285C6.36328 14.2734 6.81152 14.7305 7.36523 14.7305C7.91895 14.7305 8.36719 14.2734 8.36719 13.7285V8.36719H13.7285C14.2734 8.36719 14.7305 7.91895 14.7305 7.36523C14.7305 6.81152 14.2734 6.36328 13.7285 6.36328H8.36719V1.00195C8.36719 0.457031 7.91895 0 7.36523 0C6.81152 0 6.36328 0.457031 6.36328 1.00195V6.36328H1.00195C0.457031 6.36328 0 6.81152 0 7.36523C0 7.91895 0.457031 8.36719 1.00195 8.36719Z" />
+                  <line x1="32" y1="-10" x2="32" y2="10" stroke="#9ca3af" stroke-width="1" />
+                  <g style="cursor:pointer;" title="Додати вузол" @click.stop="$emit('add-branch-node', br.id)">
+                    <rect x="32" y="-14" width="32" height="28" fill="transparent" rx="14"/>
+                    <g transform="translate(42.7, -5.3)" fill="#4b5563">
+                      <path transform="scale(0.55)" d="M1.00195 8.36719H6.36328V13.7285C6.36328 14.2734 6.81152 14.7305 7.36523 14.7305C7.91895 14.7305 8.36719 14.2734 8.36719 13.7285V8.36719H13.7285C14.2734 8.36719 14.7305 7.91895 14.7305 7.36523C14.7305 6.81152 14.2734 6.36328 13.7285 6.36328H8.36719V1.00195C8.36719 0.457031 7.91895 0 7.36523 0C6.81152 0 6.36328 0.457031 6.36328 1.00195V6.36328H1.00195C0.457031 6.36328 0 6.81152 0 7.36523C0 7.91895 0.457031 8.36719 1.00195 8.36719Z" />
+                    </g>
                   </g>
-                </g>
               </g>
             </template>
           </template>
@@ -538,10 +533,10 @@
           <template v-for="(br, brIdx) in branchesForSeg(segments.indexOf(seg))" :key="'lbr-' + br.id">
             <path v-if="br.finished"
                   :d="getLeftBranchFinishedPath(br, i).d"
-                  fill="none" :stroke="color" :stroke-width="layout.RAIL_W" stroke-linejoin="round" stroke-linecap="round"/>
+                  fill="none" style="cursor:pointer;" @click.stop="selectBranchSection(br, 0, i, false)" :stroke="color" :stroke-width="layout.RAIL_W" stroke-linejoin="round" stroke-linecap="round"/>
             <path v-else
                   :d="getBranchOutPath(layout.leftX, layout.leftNodeY[i+1], getBranchDx(br), -1, -1, getBranchEndpointY(br, i, false))"
-                  fill="none" :stroke="color" :stroke-width="layout.RAIL_W" stroke-linejoin="round" stroke-linecap="round"/>
+                  fill="none" style="cursor:pointer;" @click.stop="selectBranchSection(br, 0, i, false)" :stroke="color" :stroke-width="layout.RAIL_W" stroke-linejoin="round" stroke-linecap="round"/>
 
             <!-- Branch Direction Arrow (Left) -->
             <g class="anim-row" :style="{ transform: 'translate(' + (layout.leftX - getBranchDx(br)) + 'px, ' + (layout.leftNodeY[i+1] - 40 - 48) + 'px) rotate(-90deg)', transition: 'all 0.6s cubic-bezier(0.4, 0, 0.2, 1)' }">
@@ -555,16 +550,8 @@
               <rect x="-5" y="-5" width="20" height="28" rx="4" fill="rgba(255,255,255,0.85)" />
               <path d="M2.88376 17.0266C3.43747 17.0266 3.76266 16.675 3.76266 16.0862V11.0061C4.76462 12.3948 6.39059 13.5022 8.42966 14.2053C9.00095 14.425 9.47555 14.135 9.64255 13.7307C9.80954 13.3352 9.68649 12.8342 9.09762 12.5618C5.9863 11.2698 3.76266 9.32739 3.76266 6.16333V4.35278H5.08981C5.75778 4.35278 5.95114 3.84302 5.55563 3.2981L3.44626 0.336182C3.12985 -0.112061 2.63766 -0.112061 2.32126 0.336182L0.211882 3.2981C-0.192415 3.84302 -0.00784427 4.35278 0.677703 4.35278H2.00485V16.0862C2.00485 16.675 2.33005 17.0266 2.88376 17.0266Z" :fill="color"/>
             </g>
-            <!-- Контрольна точка circle (Left) -->
-            <g style="cursor:pointer">
-              <circle :cx="layout.leftX - getBranchDx(br)"
-                      :cy="br.finished ? getLeftBranchFinishedPath(br, i).turnY : getBranchEndpointY(br, i, false)"
-                      r="9" fill="#f5f5f5" :stroke="color" stroke-width="3"/>
-              <text :x="layout.leftX - getBranchDx(br) - 18"
-                    :y="(br.finished ? getLeftBranchFinishedPath(br, i).turnY : getBranchEndpointY(br, i, false)) + 4"
-                    font-size="13" font-weight="700" fill="#111827" text-anchor="end"
-                    style="pointer-events:none;">Контрольна точка</text>
-            </g>
+
+
 
             <!-- Type 1 Merge Node on Main Line -->
             <g v-if="br.finished && br.mergeConfigured === 'add_inside'">
@@ -590,6 +577,15 @@
 
             <!-- Branch Stops (Per Section) -->
             <template v-for="(si, secIdx) in (getBranchNodesLength(br) + 1)" :key="'lbrsec-' + secIdx">
+              <!-- Clickable Branch Section Overlay (Left) -->
+              <rect :x="layout.leftX - getBranchDx(br) - 12"
+                    :y="Math.min(getBranchSectionStartY(br, secIdx, i, false), getBranchSectionEndY(br, secIdx, i, false))"
+                    width="24"
+                    :height="Math.max(24, Math.abs(getBranchSectionEndY(br, secIdx, i, false) - getBranchSectionStartY(br, secIdx, i, false)))"
+                    fill="transparent"
+                    style="cursor: pointer;"
+                    title="Налаштувати ділянку розгалудження"
+                    @click.stop="selectBranchSection(br, secIdx - 1, i, false)" />
               <g v-for="(bStop, bStIdx) in getBranchSectionStops(br, secIdx)" :key="'lbrst-' + bStop.id" style="cursor:pointer;"
                  @click.stop="$emit('edit-branch-stop', br.id, secIdx - 1, bStIdx)">
                 <line :x1="layout.leftX - getBranchDx(br)"
@@ -605,27 +601,20 @@
               <!-- Apple-style Unified Add Pill (Left Branch) -->
               <g class="anim-row"
                  :style="{ opacity: (editable && !localBranchMode) ? 1 : 0, pointerEvents: (editable && !localBranchMode) ? 'auto' : 'none', transition: 'opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1)', transform: 'translate(' + (layout.leftX - getBranchDx(br) - 48) + 'px, ' + getBranchAddStopY(br, secIdx, i, false) + 'px)' }">
-                <rect x="-64" y="-14" width="64" height="28" rx="14"
-                      fill="rgba(255,255,255,0.8)" stroke="#d1d5db" stroke-width="1"
-                      style="backdrop-filter: blur(4px);" />
-                
-                <!-- Far Left: Add Node -->
-                <g style="cursor:pointer;" @click.stop="$emit('add-branch-node', br.id)">
-                  <rect x="-64" y="-14" width="32" height="28" fill="transparent" rx="14"/>
-                  <g transform="translate(-53.3, -5.3)" fill="#4b5563">
-                    <path transform="scale(0.55)" d="M1.00195 8.36719H6.36328V13.7285C6.36328 14.2734 6.81152 14.7305 7.36523 14.7305C7.91895 14.7305 8.36719 14.2734 8.36719 13.7285V8.36719H13.7285C14.2734 8.36719 14.7305 7.91895 14.7305 7.36523C14.7305 6.81152 14.2734 6.36328 13.7285 6.36328H8.36719V1.00195C8.36719 0.457031 7.91895 0 7.36523 0C6.81152 0 6.36328 0.457031 6.36328 1.00195V6.36328H1.00195C0.457031 6.36328 0 6.81152 0 7.36523C0 7.91895 0.457031 8.36719 1.00195 8.36719Z" />
+                <rect x="-64" y="-14" width="64" height="28" rx="14" fill="rgba(255,255,255,0.8)" stroke="#d1d5db" stroke-width="1" style="backdrop-filter: blur(4px);" />
+                  <g style="cursor:pointer;" title="Додати вузол" @click.stop="$emit('add-branch-node', br.id)">
+                    <rect x="-64" y="-14" width="32" height="28" fill="transparent" rx="14"/>
+                    <g transform="translate(-53.3, -5.3)" fill="#4b5563">
+                      <path transform="scale(0.55)" d="M1.00195 8.36719H6.36328V13.7285C6.36328 14.2734 6.81152 14.7305 7.36523 14.7305C7.91895 14.7305 8.36719 14.2734 8.36719 13.7285V8.36719H13.7285C14.2734 8.36719 14.7305 7.91895 14.7305 7.36523C14.7305 6.81152 14.2734 6.36328 13.7285 6.36328H8.36719V1.00195C8.36719 0.457031 7.91895 0 7.36523 0C6.81152 0 6.36328 0.457031 6.36328 1.00195V6.36328H1.00195C0.457031 6.36328 0 6.81152 0 7.36523C0 7.91895 0.457031 8.36719 1.00195 8.36719Z" />
+                    </g>
                   </g>
-                </g>
-
-                <line x1="-32" y1="-10" x2="-32" y2="10" stroke="#9ca3af" stroke-width="1" />
-
-                <!-- Right (closer to branch): Add Stop -->
-                <g style="cursor:pointer;" @click.stop="$emit('add-branch-stop', br.id, secIdx - 1)">
-                  <rect x="-32" y="-14" width="32" height="28" fill="transparent" rx="14"/>
-                  <g transform="translate(-12.5, -7) scale(-1, 1)" fill="#4b5563">
-                    <path transform="scale(0.5)" d="M5.78869 27.4289C6.5345 27.4289 7.07691 26.9543 7.07691 26.0616V17.3943C7.07691 17.0101 7.25772 16.7841 7.56282 16.7841C7.86793 16.7841 8.06003 17.0101 8.06003 17.3943V26.0616C8.06003 26.9543 8.60244 27.4289 9.34826 27.4289C10.0828 27.4289 10.6252 26.9543 10.6252 26.0616V11.4165C10.6252 11.1114 10.7721 10.9306 11.0207 10.9306C11.258 10.9306 11.4162 11.1114 11.4162 11.4165V17.4282C11.4162 18.2305 11.8908 18.6825 12.5688 18.6825C13.2468 18.6825 13.7101 18.2305 13.7101 17.4282V11.5521C13.7101 7.9699 11.6874 7.04328 7.67583 7.04328H5.93559C5.15588 7.04328 4.76037 6.93027 4.13885 6.47827L2.64723 5.42735L2.37602 1.20106C2.31952 0.387446 1.79971 -0.0419624 1.1217 0.00323846C0.432382 0.0371391 -0.0422274 0.534349 0.00297345 1.33666L0.274179 5.52905C0.33068 6.44437 0.692287 6.97548 1.2573 7.39358L3.96935 9.37112C4.36486 9.65363 4.50046 10.0039 4.50046 10.4559V26.0616C4.50046 26.9543 5.05417 27.4289 5.78869 27.4289ZM7.67583 5.91325C9.17875 5.91325 10.3879 4.67023 10.3879 3.2125C10.3879 1.70957 9.17875 0.489148 7.67583 0.489148C6.16159 0.489148 4.97507 1.70957 4.97507 3.2125C4.97507 4.69283 6.16159 5.91325 7.67583 5.91325Z"/>
+                  <line x1="-32" y1="-10" x2="-32" y2="10" stroke="#9ca3af" stroke-width="1" />
+                  <g style="cursor:pointer;" title="Додати зупинку" @click.stop="$emit('add-branch-stop', br.id, secIdx - 1)">
+                    <rect x="-32" y="-14" width="32" height="28" fill="transparent" rx="14"/>
+                    <g transform="translate(-12.5, -7) scale(-1, 1)" fill="#4b5563">
+                      <path transform="scale(0.5)" d="M5.78869 27.4289C6.5345 27.4289 7.07691 26.9543 7.07691 26.0616V17.3943C7.07691 17.0101 7.25772 16.7841 7.56282 16.7841C7.86793 16.7841 8.06003 17.0101 8.06003 17.3943V26.0616C8.06003 26.9543 8.60244 27.4289 9.34826 27.4289C10.0828 27.4289 10.6252 26.9543 10.6252 26.0616V11.4165C10.6252 11.1114 10.7721 10.9306 11.0207 10.9306C11.258 10.9306 11.4162 11.1114 11.4162 11.4165V17.4282C11.4162 18.2305 11.8908 18.6825 12.5688 18.6825C13.2468 18.6825 13.7101 18.2305 13.7101 17.4282V11.5521C13.7101 7.9699 11.6874 7.04328 7.67583 7.04328H5.93559C5.15588 7.04328 4.76037 6.93027 4.13885 6.47827L2.64723 5.42735L2.37602 1.20106C2.31952 0.387446 1.79971 -0.0419624 1.1217 0.00323846C0.432382 0.0371391 -0.0422274 0.534349 0.00297345 1.33666L0.274179 5.52905C0.33068 6.44437 0.692287 6.97548 1.2573 7.39358L3.96935 9.37112C4.36486 9.65363 4.50046 10.0039 4.50046 10.4559V26.0616C4.50046 26.9543 5.05417 27.4289 5.78869 27.4289ZM7.67583 5.91325C9.17875 5.91325 10.3879 4.67023 10.3879 3.2125C10.3879 1.70957 9.17875 0.489148 7.67583 0.489148C6.16159 0.489148 4.97507 1.70957 4.97507 3.2125C4.97507 4.69283 6.16159 5.91325 7.67583 5.91325Z"/>
+                    </g>
                   </g>
-                </g>
               </g>
             </template>
           </template>
@@ -832,7 +821,7 @@ const emit = defineEmits([
   'add-stop', 'remove-stop',
   'add-node', 'remove-node',
   'add-branch', 'add-sub-branch', 'finish-branch',
-  'add-branch-node', 'add-branch-stop',
+  'add-branch-node', 'add-branch-stop', 'extend-branch-with-stop',
   'edit-branch-stop', 'edit-branch-node',
   'toggle-branch-mode'
 ]);
@@ -1046,6 +1035,96 @@ function getBranchStopY(br, secIdx, bStIdx, i, isRight) {
   return isRight ? (startY + yOffset) : (startY - yOffset);
 }
 
+function selectBranchSection(br, secIdx = 0, segIndex = 0, isRight = true) {
+  if (!br.sections) br.sections = [];
+  while (br.sections.length <= secIdx) {
+    const sIdx = br.sections.length;
+    br.sections.push({
+      id: 'br_sec_' + br.id + '_' + sIdx,
+      stops: [],
+      travelTime: 5,
+      interval: '20',
+      intervalMax: '25'
+    });
+  }
+  const sec = br.sections[secIdx];
+  if (!sec.id) {
+    sec.id = 'br_sec_' + br.id + '_' + secIdx;
+  }
+  if (!sec.stops) sec.stops = [];
+  if (sec.travelTime === undefined) sec.travelTime = 5;
+  if (sec.interval === undefined) sec.interval = '20';
+  if (sec.intervalMax === undefined) sec.intervalMax = '25';
+
+  if (router && route) {
+    router.push({ query: { ...route.query, segmentId: String(sec.id) } });
+  }
+
+  // Camera zoom to branch section
+  if (!layout.value) return;
+  const l = layout.value;
+  const cx = isRight ? (l.rightX + getBranchDx(br)) : (l.leftX - getBranchDx(br));
+  const sY = getBranchSectionStartY(br, secIdx + 1, segIndex, isRight);
+  const eY = getBranchSectionEndY(br, secIdx + 1, segIndex, isRight);
+  const cy = (sY + eY) / 2;
+  const segH = Math.abs(eY - sY);
+
+  let targetH = segH + 160;
+  let targetW = targetH * (800 / 1200);
+  if (targetW < 350) {
+    targetW = 350;
+    targetH = targetW * (1200 / 800);
+  }
+  if (targetW > 800) {
+    targetW = 800;
+    targetH = 1200;
+  }
+
+  const targetX = cx - targetW / 2;
+  const targetY = cy - targetH / 2;
+  const startX = vbX.value;
+  const startY = vbY.value;
+  const startW = vbW.value;
+  const startH = vbH.value;
+  const duration = 500;
+  const startTime = performance.now();
+
+  if (zoomAnimFrame) cancelAnimationFrame(zoomAnimFrame);
+  function step(time) {
+    let progress = (time - startTime) / duration;
+    if (progress > 1) progress = 1;
+    const ease = progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+    vbX.value = startX + (targetX - startX) * ease;
+    vbY.value = startY + (targetY - startY) * ease;
+    vbW.value = startW + (targetW - startW) * ease;
+    vbH.value = startH + (targetH - startH) * ease;
+    if (progress < 1) {
+      zoomAnimFrame = requestAnimationFrame(step);
+    }
+  }
+  zoomAnimFrame = requestAnimationFrame(step);
+}
+
+function getBranchSectionStartY(br, secIdx, i, isRight) {
+  if (!layout.value) return 0;
+  const l = layout.value;
+  const baseStartY = isRight ? (l.rightNodeY[i] + 64) : (l.leftNodeY[i+1] - 64);
+  if (secIdx <= 1) return baseStartY;
+  return getBranchNodeY(br, secIdx - 2, i, isRight);
+}
+
+function getBranchSectionEndY(br, secIdx, i, isRight) {
+  if (!layout.value) return 0;
+  const nodesLen = getBranchNodesLength(br);
+  if (secIdx <= nodesLen) {
+    return getBranchNodeY(br, secIdx - 1, i, isRight);
+  }
+  if (br.finished) {
+    return isRight ? getRightBranchFinishedPath(br, i).turnY : getLeftBranchFinishedPath(br, i).turnY;
+  }
+  return getBranchEndpointY(br, i, isRight);
+}
+
 function getBranchAddStopY(br, secIdx, i, isRight) {
   if (!layout.value) return 0;
   const l = layout.value;
@@ -1110,8 +1189,8 @@ function getRightBranchFinishedPath(br, i) {
   contentOffset += nodesLen * 32;
 
   const endpointY = startY + 64;
-  const mergeY = endpointY + 32 + contentOffset;
-  const turnY = mergeY - 32;
+  const turnY = endpointY + contentOffset;
+  const mergeY = turnY;
   const r = 16;
   const absDx = Math.abs(dx);
   
@@ -1121,11 +1200,11 @@ function getRightBranchFinishedPath(br, i) {
         A ${r} ${r} 0 0 0 ${l.rightX + 38.62} ${startY + 32}
         L ${l.rightX + absDx - r} ${startY + 32}
         A ${r} ${r} 0 0 1 ${l.rightX + absDx} ${startY + 48}
-        L ${l.rightX + absDx} ${turnY}
-        A ${r} ${r} 0 0 1 ${l.rightX + absDx - r} ${turnY + r}
-        L ${l.rightX + r} ${mergeY - r}
-        A ${r} ${r} 0 0 0 ${l.rightX} ${mergeY}`,
-    arrowY: mergeY - 15,
+        L ${l.rightX + absDx} ${mergeY - r}
+        A ${r} ${r} 0 0 1 ${l.rightX + absDx - r} ${mergeY}
+        L ${l.rightX + r} ${mergeY}
+        A ${r} ${r} 0 0 0 ${l.rightX} ${mergeY + r}`,
+    arrowY: mergeY + 15,
     turnY: turnY,
     mergeY: mergeY
   };
@@ -1150,8 +1229,8 @@ function getLeftBranchFinishedPath(br, i) {
   contentOffset += nodesLen * 32;
 
   const endpointY = startY - 64;
-  const mergeY = endpointY - 32 - contentOffset;
-  const turnY = mergeY + 32;
+  const turnY = endpointY - contentOffset;
+  const mergeY = turnY;
   const r = 16;
   const absDx = Math.abs(dx);
   
@@ -1161,11 +1240,11 @@ function getLeftBranchFinishedPath(br, i) {
         A ${r} ${r} 0 0 0 ${l.leftX - 38.62} ${startY - 32}
         L ${l.leftX - absDx + r} ${startY - 32}
         A ${r} ${r} 0 0 1 ${l.leftX - absDx} ${startY - 48}
-        L ${l.leftX - absDx} ${turnY}
-        A ${r} ${r} 0 0 1 ${l.leftX - absDx + r} ${turnY - r}
-        L ${l.leftX - r} ${mergeY + r}
-        A ${r} ${r} 0 0 0 ${l.leftX} ${mergeY}`,
-    arrowY: mergeY + 15,
+        L ${l.leftX - absDx} ${mergeY + r}
+        A ${r} ${r} 0 0 1 ${l.leftX - absDx + r} ${mergeY}
+        L ${l.leftX - r} ${mergeY}
+        A ${r} ${r} 0 0 0 ${l.leftX} ${mergeY - r}`,
+    arrowY: mergeY - 15,
     turnY: turnY,
     mergeY: mergeY
   };

@@ -90,7 +90,7 @@ export class OvalLayout {
       
       // Ensure finished branches have grid-aligned height: 96 (out) + 32 (vertical) + 64 (merge in) = 192px
       if (b.finished) {
-        branchHeight = Math.max(128, branchHeight + 32);
+        branchHeight = Math.max(160, branchHeight + 64);
       }
 
       // Sub-branches inside this branch
@@ -140,7 +140,7 @@ export class OvalLayout {
         }
         const nodeCount = (b.nodes || []).length;
         if (nodeCount > 0) brH += nodeCount * 32;
-        if (b.finished) brH = Math.max(128, brH + 32);
+        if (b.finished) brH = Math.max(160, brH + 64);
         
         let targetIdx = -1;
         if (b.finished && b.targetType === 'node' && b.targetNodeId) {

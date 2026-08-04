@@ -393,6 +393,27 @@ function addBranchNode(brId) {
   }
 }
 
+function extendBranchWithStop(brId) {
+  const br = branches.value.find(b => b.id === brId);
+  if (br) {
+    if (!br.nodes) br.nodes = [];
+    if (!br.sections) br.sections = [{ stops: [] }];
+    
+    br.nodes.push({
+      id: 'br_node_' + Date.now(),
+      name: 'Контрольна ' + (br.nodes.length + 1)
+    });
+    
+    br.sections.push({ stops: [] });
+    
+    const lastSec = br.sections[br.sections.length - 1];
+    lastSec.stops.push({
+      id: 'br_stop_' + Date.now(),
+      name: 'Зупинка ' + (lastSec.stops.length + 1)
+    });
+  }
+}
+
 function addBranchStop(brId, sectionIdx = 0) {
   const br = branches.value.find(b => b.id === brId);
   if (br) {
@@ -513,8 +534,81 @@ const activeSegment = computed(() => {
         for (const sec of br.sections) {
           if (String(sec.id) === String(rawId)) {
             sec.isBranch = true;
-            if (!sec.startNode) sec.startNode = { id: 'br_sn_' + sec.id, name: "З'єднання / Початок", realId: null };
-            if (!sec.endNode) sec.endNode = { id: 'br_en_' + sec.id, name: "Кінцева розгалудження", realId: null };
+            const secIdx = br.sections.indexOf(sec);
+            
+            // Resolve real start node
+            let realStartNode = null;
+            if (secIdx === 0) {
+              const mainSeg = segments.value[br.segIdx];
+              if (mainSeg) {
+                const s = mainSeg.side || 'right';
+                const sNodes = nodes.value.filter(n => n.type === 'end' || n.side === s || !n.side);
+                const sSegs = segments.value.filter(sg => sg.side === s || !sg.side);
+                const i = sSegs.findIndex(sg => sg.id === mainSeg.id);
+                if (i !== -1 && sNodes[i] && sNodes[i+1]) {
+                   realStartNode = s === 'left' ? sNodes[i+1] : sNodes[i];
+                }
+              }
+            } else {
+              if (!br.nodes) br.nodes = [];
+              if (br.nodes[secIdx - 1]) realStartNode = br.nodes[secIdx - 1];
+              else {
+                br.nodes[secIdx - 1] = { id: 'br_node_' + br.id + '_' + (secIdx - 1), name: 'Контрольна', type: 'control' };
+                realStartNode = br.nodes[secIdx - 1];
+              }
+            }
+            sec.startNode = realStartNode || { id: 'br_sn_' + sec.id, name: "З'єднання", realId: null };
+
+            // Resolve real end node
+            let realEndNode = null;
+            const brNodesLen = br.nodes ? br.nodes.length : 0;
+            if (secIdx < brNodesLen) {
+               realEndNode = br.nodes[secIdx];
+            } else {
+               if (br.finished) {
+                 if (!br.targetType || br.targetType === 'current') {
+                    const mainSeg = segments.value[br.segIdx];
+                    if (mainSeg) {
+                      const s = mainSeg.side || 'right';
+                      const sNodes = nodes.value.filter(n => n.type === 'end' || n.side === s || !n.side);
+                      const sSegs = segments.value.filter(sg => sg.side === s || !sg.side);
+                      const i = sSegs.findIndex(sg => sg.id === mainSeg.id);
+                      if (i !== -1 && sNodes[i] && sNodes[i+1]) {
+                         realEndNode = s === 'left' ? sNodes[i] : sNodes[i+1];
+                      }
+                    }
+                 }
+                 if (!realEndNode) {
+                   if (!br.mergeNode) br.mergeNode = { id: 'br_merge_' + br.id, name: "Злиття", realId: null };
+                   realEndNode = br.mergeNode;
+                 }
+               } else {
+                 if (!br.terminusNode) br.terminusNode = { id: 'br_term_' + br.id, name: 'Кінцева розгалудження', isTerminus: true, realId: null };
+                 realEndNode = br.terminusNode;
+               }
+            }
+            sec.endNode = realEndNode || { id: 'br_en_' + sec.id, name: "Кінець гілки", realId: null };
+            
+            sec.isBranch = true;
+            sec.br = br;
+
+            Object.defineProperty(sec, 'unifiedStops', {
+              get() {
+                const branchStops = sec.stops || [];
+                const mainSeg = segments.value[br.segIdx];
+                const secIdx = br.sections.indexOf(sec);
+                const isLastSection = secIdx === br.sections.length - 1;
+                
+                if (br.finished && (!br.targetType || br.targetType === 'current') && mainSeg && isLastSection) {
+                   const mainStops = mainSeg.stops || [];
+                   return [...branchStops, ...mainStops];
+                }
+                return branchStops;
+              },
+              configurable: true,
+              enumerable: true
+            });
+            
             return sec;
           }
         }
@@ -636,8 +730,26 @@ function removeTerminus(node) {
   node.name = `Контрольна ${node.id}`;
 }
 
-function removeStopFromSeg(seg, stopIdx) {
-  seg.stops.splice(stopIdx, 1);
+function removeStopFromSeg(seg, stopOrIdx) {
+  if (typeof stopOrIdx === 'number') {
+    seg.stops.splice(stopOrIdx, 1);
+    return;
+  }
+  const stop = stopOrIdx;
+  let idx = seg.stops.findIndex(s => s.id === stop.id);
+  if (idx !== -1) {
+    seg.stops.splice(idx, 1);
+    return;
+  }
+  if (seg.isBranch && seg.br && (!seg.br.targetType || seg.br.targetType === 'current')) {
+    const mainSeg = segments.value[seg.br.segIdx];
+    if (mainSeg && mainSeg.stops) {
+      idx = mainSeg.stops.findIndex(s => s.id === stop.id);
+      if (idx !== -1) {
+        mainSeg.stops.splice(idx, 1);
+      }
+    }
+  }
 }
 
 function closeSegmentEditor() {
@@ -756,6 +868,7 @@ const canvasRef = ref(null);
         @add-node="(side, segIdx, pos) => addControlNode(side, segIdx, pos)"
         @add-branch-node="addBranchNode"
         @add-branch-stop="(brId, si) => addBranchStop(brId, si)"
+        @extend-branch-with-stop="extendBranchWithStop"
         @edit-branch-stop="editBranchStop"
         @edit-branch-node="editBranchNode"
         @toggle-branch-mode="isBranchMode = !isBranchMode"
@@ -1141,7 +1254,8 @@ const canvasRef = ref(null);
               <div class="flex items-center justify-between mb-1.5">
                 <span class="text-xs font-bold truncate mr-2 flex items-center gap-1.5"
                       :class="segItem.isBranch ? 'text-purple-700' : 'text-gray-700'">
-                  <span v-if="segItem.isBranch" class="px-1.5 py-0.5 text-[8px] font-bold uppercase rounded bg-purple-100 text-purple-700 shrink-0">Гілка</span>
+                  <span v-if="segItem.isConnecting" class="px-1.5 py-0.5 text-[8px] font-bold uppercase rounded bg-indigo-100 text-indigo-700 shrink-0">З'єднувальна ділянка</span>
+                  <span v-else-if="segItem.isBranch" class="px-1.5 py-0.5 text-[8px] font-bold uppercase rounded bg-purple-100 text-purple-700 shrink-0">Гілка</span>
                   {{ segItem.name }}
                 </span>
                 <button @click="router.push({ query: { ...route.query, segmentId: segItem.id } })"
@@ -1282,14 +1396,14 @@ const canvasRef = ref(null);
           <div class="flex-1 flex flex-col min-h-0 bg-white border border-gray-200 rounded-2xl shadow-sm">
             <div class="p-4 border-b border-gray-100 flex items-center justify-between">
               <h3 class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Зупинки на ділянці</h3>
-              <span class="text-xs font-bold bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{{ activeSegment.stops.length }}</span>
+              <span class="text-xs font-bold bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{{ (activeSegment.unifiedStops || activeSegment.stops).length }}</span>
             </div>
             
             <div class="p-2 overflow-y-auto flex-1">
-              <div v-if="activeSegment.stops.length === 0" class="p-4 text-center text-gray-400 text-sm font-medium">
+              <div v-if="(activeSegment.unifiedStops || activeSegment.stops).length === 0" class="p-4 text-center text-gray-400 text-sm font-medium">
                 Немає зупинок. Додайте їх на схемі.
               </div>
-              <div v-for="(stop, sIdx) in activeSegment.stops" :key="stop.id"
+              <div v-for="(stop, sIdx) in (activeSegment.unifiedStops || activeSegment.stops)" :key="stop.id"
                    class="mb-2 p-3 bg-gray-50 border border-gray-100 rounded-xl group relative">
                 
                 <div class="flex items-center justify-between mb-2">
@@ -1297,7 +1411,7 @@ const canvasRef = ref(null);
                     <span class="w-4 h-4 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-[9px]">{{ sIdx + 1 }}</span>
                     {{ stop.name }}
                   </div>
-                  <button @click="removeStopFromSeg(activeSegment, sIdx)"
+                  <button @click="removeStopFromSeg(activeSegment, stop)"
                           class="text-gray-400 hover:text-red-500 transition-colors p-1" title="Видалити зупинку">
                     <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                   </button>
