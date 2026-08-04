@@ -1403,8 +1403,18 @@ const canvasRef = ref(null);
               <div v-if="(activeSegment.unifiedStops || activeSegment.stops).length === 0" class="p-4 text-center text-gray-400 text-sm font-medium">
                 Немає зупинок. Додайте їх на схемі.
               </div>
-              <div v-for="(stop, sIdx) in (activeSegment.unifiedStops || activeSegment.stops)" :key="stop.id"
-                   class="mb-2 p-3 bg-gray-50 border border-gray-100 rounded-xl group relative">
+              <template v-for="(stop, sIdx) in (activeSegment.unifiedStops || activeSegment.stops)" :key="stop.id">
+                <div v-if="activeSegment.unifiedStops && sIdx === activeSegment.stops.length" 
+                     class="flex justify-center my-3 relative">
+                  <div class="absolute inset-0 flex items-center" aria-hidden="true">
+                    <div class="w-full border-t border-blue-200/60 border-dashed"></div>
+                  </div>
+                  <div class="relative bg-white border border-blue-200 rounded-md shadow-sm px-2 py-1 flex items-center gap-1.5 justify-center text-blue-600" title="Місце злиття">
+                    <SvgIcon name="finish-branch" class="w-3 h-3 text-blue-600" />
+                    <span class="text-[10px] font-bold uppercase tracking-wider">Злиття</span>
+                  </div>
+                </div>
+                <div class="mb-2 p-3 bg-gray-50 border border-gray-100 rounded-xl group relative">
                 
                 <div class="flex items-center justify-between mb-2">
                   <div class="text-xs font-bold text-gray-800 flex items-center gap-1.5">
@@ -1431,6 +1441,7 @@ const canvasRef = ref(null);
                   </div>
                 </div>
               </div>
+              </template>
             </div>
           </div>
 
