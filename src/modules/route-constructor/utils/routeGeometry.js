@@ -39,14 +39,14 @@ export class OvalLayout {
 
     // Calculate initial right node Ys
     this._rightNodeY = this._computeRightYs(this._rightSegments);
-    let botPadding = this.editable !== false ? 160 : 0; // completely remove space when not editable
+    let botPadding = (this.editable !== false && !this.isBranchMode) ? 160 : 0; // completely remove space when not editable or in branch mode
     let botY = this._rightNodeY[this._rightNodeY.length - 1] + botPadding;
     
     // Calculate left node Ys based on current botY
     this._leftNodeY = this._computeLeftYs(this._leftSegments, botY);
     
     // If the top left node gets too close to topY, the left rail needs more space.
-    let topPadding = this.editable !== false ? 160 : 0;
+    let topPadding = (this.editable !== false && !this.isBranchMode) ? 160 : 0;
     if (this._leftNodeY[0] < this.topY + topPadding) {
       const deficit = (this.topY + topPadding) - this._leftNodeY[0];
       botY += deficit;
@@ -78,16 +78,19 @@ export class OvalLayout {
       const isType1 = b.mergeConfigured === 'add_inside';
       const isType2 = b.finished && b.targetType && b.targetType !== 'current';
       const dx = (isType1 || isType2) ? 190 : 45;
-      let branchHeight = 96; // 64px diagonal + 32px vertical to endpoint
+      let branchHeight = 64; // 64px diagonal/vertical curve clearance
       for (let si = 0; si < sectionCount; si++) {
         const stopsInSection = (sections[si]?.stops || []).length;
         branchHeight += stopsInSection * 32;
+        if (this.editable !== false) {
+          branchHeight += 32; // Space for the Add Pill
+        }
       }
       if (nodeCount > 0) branchHeight += nodeCount * 32;
       
       // Ensure finished branches have grid-aligned height: 96 (out) + 32 (vertical) + 64 (merge in) = 192px
       if (b.finished) {
-        branchHeight = Math.max(192, branchHeight + 96);
+        branchHeight = Math.max(128, branchHeight + 32);
       }
 
       // Sub-branches inside this branch
@@ -109,7 +112,7 @@ export class OvalLayout {
 
   _segH(seg, isLastSeg, segIdx, ignoreFarBranches = false) {
     const isBranchMode = !!this.isBranchMode;
-    const base = this.editable !== false ? (isBranchMode ? 96 : 64) : 32;
+    const base = this.editable !== false ? 64 : 32;
     const branchPadding = this.getBranchPadding(segIdx, ignoreFarBranches);
     return base + ((seg && seg.stops) ? seg.stops.length : 0) * this.STOP_H + branchPadding;
   }
@@ -137,7 +140,7 @@ export class OvalLayout {
         }
         const nodeCount = (b.nodes || []).length;
         if (nodeCount > 0) brH += nodeCount * 32;
-        if (b.finished) brH = Math.max(192, brH + 96);
+        if (b.finished) brH = Math.max(128, brH + 32);
         
         let targetIdx = -1;
         if (b.finished && b.targetType === 'node' && b.targetNodeId) {
@@ -217,25 +220,19 @@ export class OvalLayout {
   stopY(seg, top, bot, stIdx, isLastSeg, segIdx) {
     const n = (seg && seg.stops) ? seg.stops.length : 0;
     if (n === 0) return (top + bot) / 2;
-    const segBranches = (segIdx !== undefined) ? this.branches.filter(b => b.segIdx === segIdx) : [];
     const isLeft = seg && seg.side === 'left';
     const isBranchMode = !!this.isBranchMode;
 
-    let branchOffset = 0;
-    segBranches.forEach(b => {
-      const nodeCount = b.nodes ? b.nodes.length : 0;
-      branchOffset += b.finished ? (55 + nodeCount * 40) : (200 + nodeCount * 80);
-    });
+    const branchOffset = this.getBranchPadding(segIdx);
 
     if (isLeft) {
       // On left rail, travel is UPWARD (from bot to top).
       // bot is the lower control node Y.
       // In branch mode, offset stops 64px ABOVE bot so the UP-LEFT (-26px) spur button sits in clear space.
-      const bottomOffset = isBranchMode ? 64 : (this.editable !== false ? 32 : 0);
-      return bot - bottomOffset - 32 * (n - 1 - stIdx);
+      const bottomOffset = isBranchMode ? 64 : 32;
+      return bot - branchOffset - bottomOffset - 32 * (n - 1 - stIdx);
     } else {
       // On right rail, travel is DOWNWARD (from top to bot).
-      // top is the upper control node Y.
       // In branch mode, offset stops 64px BELOW top so the DOWN-RIGHT (+26px) spur button sits in clear space.
       const topOffset = isBranchMode ? 64 : 32;
       return top + branchOffset + topOffset + 32 * stIdx;

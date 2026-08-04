@@ -115,8 +115,13 @@ const segmentControlNodes = computed(() => {
 });
 
 /* ─────────── Mutations ─────────── */
-function addStop(sIdx, side) {
-  segments.value[sIdx].stops.push({ id: Date.now(), name: 'Нова зупинка', side });
+function addStop(sIdx, side, insertIdx = -1) {
+  const newStop = { id: Date.now(), name: 'Нова зупинка', side };
+  if (insertIdx !== -1 && insertIdx !== undefined) {
+    segments.value[sIdx].stops.splice(insertIdx, 0, newStop);
+  } else {
+    segments.value[sIdx].stops.push(newStop);
+  }
 }
 function removeStop(sIdx, stIdx) {
   segments.value[sIdx].stops.splice(stIdx, 1);
@@ -188,6 +193,21 @@ function addControlNode(side = 'right', explicitSegIdx = -1) {
         { id: newId + 2, travelTime: old.travelTime - half, interval: old.interval, intervalMax: old.intervalMax, stops: [], side: oldSide }
       );
     }
+
+    // Update branches
+    if (branches.value) {
+      branches.value.forEach(br => {
+        if (br.segIdx > targetSegIdx) {
+          br.segIdx++;
+        } else if (br.segIdx === targetSegIdx) {
+          // If on left rail, the "old" control node (start of travel) is at the bottom, which corresponds to the second new segment (index + 1)
+          if (side === 'left') {
+            br.segIdx++;
+          }
+          // On right rail, the "old" control node is at the top, which corresponds to the first new segment (index remains the same)
+        }
+      });
+    }
   }
 
   setTimeout(() => {
@@ -219,6 +239,17 @@ function removeNode(idx) {
       stops: [...L.stops, ...R.stops],
       side: nodeSide
     });
+
+    // Update branches
+    if (branches.value) {
+      branches.value.forEach(br => {
+        if (br.segIdx === segIdx2) {
+          br.segIdx = segIdx1;
+        } else if (br.segIdx > segIdx2) {
+          br.segIdx--;
+        }
+      });
+    }
   }
 }
 
@@ -661,7 +692,7 @@ const canvasRef = ref(null);
         :editable="isEditable"
         @edit-segment="seg  => editSeg  = seg"
         @edit-node="   node => editNode = node"
-        @add-stop="    (sIdx, side) => addStop(sIdx, side)"
+        @add-stop="    (sIdx, side, insertIdx) => addStop(sIdx, side, insertIdx)"
         @remove-stop=" (sIdx, stIdx) => removeStop(sIdx, stIdx)"
         @remove-node=" idx => removeNode(idx)"
         @add-branch="(sIdx) => addBranch(sIdx)"
