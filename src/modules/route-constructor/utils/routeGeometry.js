@@ -33,9 +33,9 @@ export class OvalLayout {
 
     // Pre-compute once at construction time for O(1) property access
     this._rightNodes = this.nodes.filter(n => !n.side || n.side === 'right');
-    this._leftNodes = this.nodes.filter(n => !n.side || n.side === 'left');
-    this._rightSegments = this.segments.filter(s => !s.side || s.side === 'right');
-    this._leftSegments = this.segments.filter(s => !s.side || s.side === 'left');
+    this._leftNodes = this.nodes.filter(n => n.side === 'left');
+    this._rightSegments = this.segments.filter(s => s.side === 'right' || (!s.side && this.segments.indexOf(s) < Math.ceil(this.segments.length / 2)));
+    this._leftSegments = this.segments.filter(s => s.side === 'left' || (!s.side && this.segments.indexOf(s) >= Math.ceil(this.segments.length / 2)));
 
     // Calculate initial right node Ys
     this._rightNodeY = this._computeRightYs(this._rightSegments);
@@ -65,6 +65,20 @@ export class OvalLayout {
   get rightSegments() { return this._rightSegments; }
   get leftSegments()  { return this._leftSegments; }
 
+  getBranchRequiredHeight(b) {
+    const sections = b.sections || [];
+    const nodeCount = (b.nodes || []).length;
+    const sectionCount = Math.max(nodeCount + 1, 1);
+    let totalStops = 0;
+    for (let si = 0; si < sectionCount; si++) {
+      totalStops += (sections[si]?.stops || []).length;
+    }
+    const isEditable = (this.editable !== false && !this.isBranchMode);
+    const pillsHeight = isEditable ? sectionCount * 32 : 0;
+    const nodesHeight = nodeCount * 32;
+    return Math.max(112, 48 + totalStops * 32 + pillsHeight + nodesHeight + 32);
+  }
+
   getBranchPadding(segIdx, ignoreFarBranches = false) {
     const segBranches = (segIdx !== undefined) ? this.branches.filter(b => b.segIdx === segIdx) : [];
     let branchPadding = 0;
@@ -72,25 +86,11 @@ export class OvalLayout {
       if (ignoreFarBranches && b.finished && b.targetType && b.targetType !== 'current') {
         return;
       }
-      const sections = b.sections || [];
-      const nodeCount = (b.nodes || []).length;
-      const sectionCount = Math.max(nodeCount + 1, 1);
-      const isType1 = b.mergeConfigured === 'add_inside';
-      const isType2 = b.finished && b.targetType && b.targetType !== 'current';
-      const dx = (isType1 || isType2) ? 190 : 45;
-      let branchHeight = 64; // 64px diagonal/vertical curve clearance
-      for (let si = 0; si < sectionCount; si++) {
-        const stopsInSection = (sections[si]?.stops || []).length;
-        branchHeight += stopsInSection * 32;
-        if (this.editable !== false) {
-          branchHeight += 32; // Space for the Add Pill
-        }
-      }
-      if (nodeCount > 0) branchHeight += nodeCount * 32;
+      let branchHeight = this.getBranchRequiredHeight(b);
       
-      // Ensure finished branches have grid-aligned height: 96 (out) + 32 (vertical) + 64 (merge in) = 192px
+      // Ensure finished branches have grid-aligned height
       if (b.finished) {
-        branchHeight = Math.max(160, branchHeight + 64);
+        branchHeight = Math.max(112, branchHeight);
       }
 
       // Sub-branches inside this branch
@@ -112,9 +112,29 @@ export class OvalLayout {
 
   _segH(seg, isLastSeg, segIdx, ignoreFarBranches = false) {
     const isBranchMode = !!this.isBranchMode;
-    const base = this.editable !== false ? 64 : 32;
-    const branchPadding = this.getBranchPadding(segIdx, ignoreFarBranches);
-    return base + ((seg && seg.stops) ? seg.stops.length : 0) * this.STOP_H + branchPadding;
+    const isEditable = this.editable !== false && !isBranchMode;
+    const base = 64;
+
+    const hasBranchStart = this.branches && this.branches.some(b => b.segIdx === segIdx);
+    const startBranchPadding = (!isBranchMode && hasBranchStart) ? 32 : 0;
+    const stopsCount = (seg && seg.stops) ? seg.stops.length : 0;
+
+    // Check if there is a branch merging into THIS segment or starting in THIS segment
+    if (this.branches) {
+      const activeBr = this.branches.find(b => 
+        b.finished && 
+        (b.bypassedMainState || b.targetType === 'current' || b.targetStopId) &&
+        (b.segIdx === segIdx || (b.targetStopId && seg && seg.stops && seg.stops.some(st => String(st.id) === String(b.targetStopId))))
+      );
+      if (activeBr) {
+        const brH = this.getBranchRequiredHeight(activeBr);
+        const topOffset = (isBranchMode || hasBranchStart) ? 64 : 32;
+        return topOffset + brH + stopsCount * this.STOP_H + (isEditable ? 32 : 0);
+      }
+    }
+
+    const pillH = isEditable ? 32 : 0;
+    return base + startBranchPadding + stopsCount * this.STOP_H + pillH;
   }
 
   _computeRightYs(segs) {
@@ -130,32 +150,75 @@ export class OvalLayout {
       changed = false;
       for (let b of this.branches) {
         if (b.side !== 'right') continue;
-        const sIdx = b.segIdx ?? 0;
-        
-        let brH = 96;
-        const sectionCount = Math.max((b.nodes || []).length + 1, 1);
-        for (let si = 0; si < sectionCount; si++) {
-           const stopsCount = (b.sections?.[si]?.stops || []).length;
-           brH += stopsCount * 32;
-        }
-        const nodeCount = (b.nodes || []).length;
-        if (nodeCount > 0) brH += nodeCount * 32;
-        if (b.finished) brH = Math.max(160, brH + 64);
-        
-        let targetIdx = -1;
-        if (b.finished && b.targetType === 'node' && b.targetNodeId) {
-           targetIdx = this.nodes.findIndex(n => n.id === b.targetNodeId);
+        const parentSeg = this.segments[b.segIdx];
+        const sIdx = parentSeg ? this._rightSegments.findIndex(s => String(s.id) === String(parentSeg.id)) : (b.segIdx ?? 0);
+        if (sIdx === -1) continue;
+
+        const brH = this.getBranchRequiredHeight(b);
+        const startY = ys[sIdx];
+
+        if (b.finished && b.targetStopId) {
+          // Branch merges into a stop on the right rail
+          const targetSegIdx = this._rightSegments.findIndex(s => s.stops && s.stops.some(st => String(st.id) === String(b.targetStopId)));
+          if (targetSegIdx !== -1) {
+            const targetSeg = this._rightSegments[targetSegIdx];
+            const mergeIdx = targetSeg.stops.findIndex(st => String(st.id) === String(b.targetStopId));
+            const isSameSeg = (targetSegIdx === sIdx);
+            const isEditable = (this.editable !== false && !this.isBranchMode);
+            const hasBranchStart = this.branches && this.branches.some(br => br.segIdx === this.segments.findIndex(s => s.id === targetSeg.id));
+            const topOffset = (this.isBranchMode || hasBranchStart) ? 64 : 32;
+            const preMergeH = topOffset + mergeIdx * 32 + (isEditable ? 32 : 0) + 16;
+            const postMergeStops = targetSeg.stops.length - mergeIdx;
+            const minSegH = isSameSeg 
+              ? (topOffset + brH + (targetSeg.stops ? targetSeg.stops.length : 0) * 32 + (isEditable ? 32 : 0))
+              : (preMergeH + postMergeStops * 32 + 32);
+
+            if (ys[targetSegIdx + 1] - ys[targetSegIdx] < minSegH) {
+              const diff = minSegH - (ys[targetSegIdx + 1] - ys[targetSegIdx]);
+              for (let k = targetSegIdx + 1; k < ys.length; k++) ys[k] += diff;
+              changed = true;
+            }
+
+            if (targetSegIdx > sIdx) {
+              const mergeTargetY = ys[targetSegIdx] + preMergeH;
+              if (mergeTargetY - startY < brH) {
+                const diff = brH - (mergeTargetY - startY);
+                for (let k = targetSegIdx; k < ys.length; k++) ys[k] += diff;
+                changed = true;
+              }
+            }
+          }
+        } else if (b.finished && b.targetType === 'node' && b.targetNodeId) {
+          const rightNodeIndex = this._rightNodes.findIndex(n => String(n.id) === String(b.targetNodeId));
+          const targetIdx = rightNodeIndex !== -1 ? rightNodeIndex : -1;
+          if (targetIdx !== -1 && targetIdx > sIdx) {
+            const currentH = ys[targetIdx] - startY;
+            if (currentH < brH) {
+              const diff = brH - currentH;
+              for (let k = targetIdx; k < ys.length; k++) ys[k] += diff;
+              changed = true;
+            }
+          }
+        } else if (b.finished && (!b.targetType || b.targetType === 'current')) {
+          const targetIdx = sIdx + 1;
+          if (targetIdx < ys.length) {
+            const currentH = ys[targetIdx] - startY;
+            if (currentH < brH) {
+              const diff = brH - currentH;
+              for (let k = targetIdx; k < ys.length; k++) ys[k] += diff;
+              changed = true;
+            }
+          }
         } else if (b.finished && b.targetType === 'bottom_arc') {
-           targetIdx = ys.length - 1;
-        }
-        
-        if (targetIdx !== -1 && targetIdx > sIdx) {
-           const currentH = ys[targetIdx] - ys[sIdx];
-           if (currentH < brH) {
-             const diff = brH - currentH;
-             for(let k = targetIdx; k < ys.length; k++) ys[k] += diff;
-             changed = true;
-           }
+          const targetIdx = ys.length - 1;
+          if (targetIdx > sIdx) {
+            const currentH = ys[targetIdx] - startY;
+            if (currentH < brH) {
+              const diff = brH - currentH;
+              for (let k = targetIdx; k < ys.length; k++) ys[k] += diff;
+              changed = true;
+            }
+          }
         }
       }
     }
@@ -173,36 +236,76 @@ export class OvalLayout {
     }
     
     let changed = true;
-    while(changed) {
+    while (changed) {
       changed = false;
       for (let b of this.branches) {
         if (b.side !== 'left') continue;
-        const sIdx = b.segIdx ?? 0;
-        
-        let brH = 48 + 25; 
-        const sectionCount = Math.max((b.nodes || []).length + 1, 1);
-        for (let si = 0; si < sectionCount; si++) {
-           const stopsCount = (b.sections?.[si]?.stops || []).length;
-           brH += (stopsCount > 0 ? (35 + stopsCount * 32) : 25);
-        }
-        const nodeCount = (b.nodes || []).length;
-        if (nodeCount > 0) brH += nodeCount * 28;
-        if (b.finished) brH = Math.max(135, brH);
-        
-        let targetIdx = -1;
-        if (b.finished && b.targetType === 'node' && b.targetNodeId) {
-           targetIdx = this.nodes.findIndex(n => n.id === b.targetNodeId);
+        const parentSeg = this.segments[b.segIdx];
+        const sIdx = parentSeg ? this._leftSegments.findIndex(s => String(s.id) === String(parentSeg.id)) : (b.segIdx ?? 0);
+        if (sIdx === -1) continue;
+
+        const brH = this.getBranchRequiredHeight(b);
+        const startY = ys[sIdx + 1];
+
+        if (b.finished && b.targetStopId) {
+          // Branch merges into a stop on the left rail
+          const targetSegIdx = this._leftSegments.findIndex(s => s.stops && s.stops.some(st => String(st.id) === String(b.targetStopId)));
+          if (targetSegIdx !== -1) {
+            const targetSeg = this._leftSegments[targetSegIdx];
+            const mergeIdx = targetSeg.stops.findIndex(st => String(st.id) === String(b.targetStopId));
+            const isSameSeg = (targetSegIdx === sIdx);
+            const isEditable = (this.editable !== false && !this.isBranchMode);
+            const hasBranchStart = this.branches && this.branches.some(br => br.segIdx === this.segments.findIndex(s => s.id === targetSeg.id));
+            const bottomOffset = (this.isBranchMode || hasBranchStart) ? 64 : 32;
+            const preMergeH = bottomOffset + mergeIdx * 32 + (isEditable ? 32 : 0) + 16;
+            const postMergeStops = targetSeg.stops.length - mergeIdx;
+            const minSegH = isSameSeg 
+              ? (bottomOffset + brH + (targetSeg.stops ? targetSeg.stops.length : 0) * 32 + (isEditable ? 32 : 0))
+              : (preMergeH + postMergeStops * 32 + 32);
+
+            if (ys[targetSegIdx + 1] - ys[targetSegIdx] < minSegH) {
+              const diff = minSegH - (ys[targetSegIdx + 1] - ys[targetSegIdx]);
+              for (let k = 0; k <= targetSegIdx; k++) ys[k] -= diff;
+              changed = true;
+            }
+
+            if (targetSegIdx < sIdx) {
+              const mergeTargetY = ys[targetSegIdx + 1] - preMergeH;
+              const currentDist = startY - mergeTargetY;
+              if (currentDist < brH) {
+                const diff = brH - currentDist;
+                for (let k = 0; k <= targetSegIdx + 1; k++) ys[k] -= diff;
+                changed = true;
+              }
+            }
+          }
+        } else if (b.finished && b.targetType === 'node' && b.targetNodeId) {
+          const leftNodeIndex = this._leftNodes.findIndex(n => String(n.id) === String(b.targetNodeId));
+          const targetIdx = leftNodeIndex !== -1 ? leftNodeIndex + 1 : -1;
+          if (targetIdx !== -1 && targetIdx <= sIdx) {
+            const currentH = startY - ys[targetIdx];
+            if (currentH < brH) {
+              const diff = brH - currentH;
+              for (let k = 0; k <= targetIdx; k++) ys[k] -= diff;
+              changed = true;
+            }
+          }
+        } else if (b.finished && (!b.targetType || b.targetType === 'current')) {
+          const targetIdx = sIdx;
+          const currentH = startY - ys[targetIdx];
+          if (currentH < brH) {
+            const diff = brH - currentH;
+            for (let k = 0; k <= targetIdx; k++) ys[k] -= diff;
+            changed = true;
+          }
         } else if (b.finished && b.targetType === 'bottom_arc') {
-           targetIdx = 0;
-        }
-        
-        if (targetIdx !== -1 && targetIdx <= sIdx) {
-           const currentH = ys[sIdx + 1] - ys[targetIdx];
-           if (currentH < brH) {
-             const diff = brH - currentH;
-             for (let k = sIdx + 1; k <= n; k++) ys[k] += diff;
-             changed = true;
-           }
+          const targetIdx = 0;
+          const currentH = startY - ys[targetIdx];
+          if (currentH < brH) {
+            const diff = brH - currentH;
+            for (let k = 0; k <= targetIdx; k++) ys[k] -= diff;
+            changed = true;
+          }
         }
       }
     }
@@ -216,6 +319,13 @@ export class OvalLayout {
   get botY() { return this._botY; }
   get totalH() { return this._botY; }
 
+  getMergeStopId(segIdx) {
+    if (!this.branches) return null;
+    const seg = this.segments ? this.segments[segIdx] : null;
+    const br = this.branches.find(b => b.finished && (b.bypassedMainState || b.targetType === 'current' || b.targetStopId) && (b.segIdx === segIdx || (b.targetStopId && seg && seg.stops && seg.stops.some(st => String(st.id) === String(b.targetStopId)))));
+    return br ? br.targetStopId : null;
+  }
+
   // Distribute stops properly between top and bot node Ys
   stopY(seg, top, bot, stIdx, isLastSeg, segIdx) {
     const n = (seg && seg.stops) ? seg.stops.length : 0;
@@ -223,59 +333,155 @@ export class OvalLayout {
     const isLeft = seg && seg.side === 'left';
     const isBranchMode = !!this.isBranchMode;
 
-    const branchOffset = this.getBranchPadding(segIdx);
+    const hasBranchStart = this.branches && this.branches.some(b => b.segIdx === segIdx);
+    const topOffset = (isBranchMode || hasBranchStart) ? 64 : 32;
+    const bottomOffset = (isBranchMode || hasBranchStart) ? 64 : 32;
+
+    if (this.branches) {
+      const activeBr = this.branches.find(b => 
+        b.finished && 
+        (b.bypassedMainState || b.targetType === 'current' || b.targetStopId) && 
+        (b.segIdx === segIdx || (b.targetStopId && seg.stops && seg.stops.some(st => String(st.id) === String(b.targetStopId))))
+      );
+      if (activeBr) {
+        let mergeIdx = -1;
+        if (activeBr.targetStopId && seg.stops) {
+          mergeIdx = seg.stops.findIndex(st => String(st.id) === String(activeBr.targetStopId));
+        }
+        if (mergeIdx === -1) {
+          mergeIdx = 0;
+        }
+        const brH = this.getBranchRequiredHeight(activeBr);
+        if (isLeft) {
+          const mergeTargetY = bot - bottomOffset - brH;
+          if (stIdx < mergeIdx) {
+            return bot - bottomOffset - stIdx * 32;
+          } else {
+            return mergeTargetY - (stIdx - mergeIdx) * 32;
+          }
+        } else {
+          const mergeTargetY = top + topOffset + brH;
+          if (stIdx < mergeIdx) {
+            return top + topOffset + stIdx * 32;
+          } else {
+            return mergeTargetY + (stIdx - mergeIdx) * 32;
+          }
+        }
+      }
+    }
 
     if (isLeft) {
-      // On left rail, travel is UPWARD (from bot to top).
-      // bot is the lower control node Y.
-      // In branch mode, offset stops 64px ABOVE bot so the UP-LEFT (-26px) spur button sits in clear space.
-      const bottomOffset = isBranchMode ? 64 : 32;
-      return bot - branchOffset - bottomOffset - 32 * (n - 1 - stIdx);
+      return bot - bottomOffset - stIdx * 32;
     } else {
-      // On right rail, travel is DOWNWARD (from top to bot).
-      // In branch mode, offset stops 64px BELOW top so the DOWN-RIGHT (+26px) spur button sits in clear space.
-      const topOffset = isBranchMode ? 64 : 32;
-      return top + branchOffset + topOffset + 32 * stIdx;
+      return top + topOffset + stIdx * 32;
     }
   }
 
   // Positioning Add Stop & Add Branch buttons
   getRightAddBranchY(seg, top, bot, isLastSeg) {
-    return top + 36;
+    return top + 32;
   }
   getRightAddStopY(seg, top, bot, isLastSeg, segIdx) {
-    const pad = this.getBranchPadding(segIdx);
-    const n = seg.stops ? seg.stops.length : 0;
+    const hasBranchStart = this.branches && this.branches.some(b => b.segIdx === segIdx);
     const isBranchMode = !!this.isBranchMode;
-    const topOffset = isBranchMode ? 64 : 32;
-    return top + pad + topOffset + 32 * n;
+    const topOffset = (isBranchMode || hasBranchStart) ? 64 : 32;
+    const n = seg.stops ? seg.stops.length : 0;
+
+    if (this.branches) {
+      const activeBr = this.branches.find(b => 
+        b.finished && 
+        (b.bypassedMainState || b.targetType === 'current' || b.targetStopId) && 
+        (b.segIdx === segIdx || (b.targetStopId && seg.stops && seg.stops.some(st => String(st.id) === String(b.targetStopId))))
+      );
+      if (activeBr) {
+        let mergeIdx = -1;
+        if (activeBr.targetStopId && seg.stops) {
+          mergeIdx = seg.stops.findIndex(st => String(st.id) === String(activeBr.targetStopId));
+        }
+        if (mergeIdx === -1) {
+          mergeIdx = 0;
+        }
+        const brH = this.getBranchRequiredHeight(activeBr);
+        const mergeTargetY = top + topOffset + brH;
+        return mergeTargetY + (n - mergeIdx) * 32;
+      }
+    }
+
+    return top + topOffset + n * 32;
   }
 
   getLeftAddStopY(seg, top, bot, isLastSeg, segIdx) {
-    // Pill is placed at exactly 32px from the top (before the highest stop)
-    return top + 32; 
+    const hasBranchStart = this.branches && this.branches.some(b => b.segIdx === segIdx);
+    const isBranchMode = !!this.isBranchMode;
+    const bottomOffset = (isBranchMode || hasBranchStart) ? 64 : 32;
+    const n = seg.stops ? seg.stops.length : 0;
+
+    if (this.branches) {
+      const activeBr = this.branches.find(b => 
+        b.finished && 
+        (b.bypassedMainState || b.targetType === 'current' || b.targetStopId) && 
+        (b.segIdx === segIdx || (b.targetStopId && seg.stops && seg.stops.some(st => String(st.id) === String(b.targetStopId))))
+      );
+      if (activeBr) {
+        let mergeIdx = -1;
+        if (activeBr.targetStopId && seg.stops) {
+          mergeIdx = seg.stops.findIndex(st => String(st.id) === String(activeBr.targetStopId));
+        }
+        if (mergeIdx === -1) {
+          mergeIdx = 0;
+        }
+        const brH = this.getBranchRequiredHeight(activeBr);
+        const mergeTargetY = bot - bottomOffset - brH;
+        return mergeTargetY - (n - mergeIdx) * 32;
+      }
+    }
+
+    return bot - bottomOffset - n * 32;
   }
+
   getRightIntervalY(seg, top, bot, isLastSeg, segIdx) {
+    const hasQuestionBr = this.branches && this.branches.some(b => 
+      b.finished && 
+      (!b.bypassedMainState || b.bypassedMainState === 'question') && 
+      (b.segIdx === segIdx || (b.targetStopId && seg.stops && seg.stops.some(st => String(st.id) === String(b.targetStopId))))
+    );
+    if (hasQuestionBr) {
+      return bot - 28;
+    }
+
     if (seg.stops && seg.stops.length > 0) {
       return (top + bot) / 2;
     }
-    if (this.editable === false) {
-      if (isLastSeg) return top + 24; // shift down towards bottom curve
-      if (segIdx === 0) return top + 8; // shift up towards top curve
+    if (isLastSeg) {
+      return (top + bot) / 2;
     }
-    return top + 16;
+    if (this.editable === false) {
+      if (segIdx === 0) return top + 8;
+    }
+    return top + 20;
   }
 
   getLeftIntervalY(seg, top, bot, isLastSeg, segIdx) {
+    const hasQuestionBr = this.branches && this.branches.some(b => 
+      b.finished && 
+      (!b.bypassedMainState || b.bypassedMainState === 'question') && 
+      (b.segIdx === segIdx || (b.targetStopId && seg.stops && seg.stops.some(st => String(st.id) === String(b.targetStopId))))
+    );
+    if (hasQuestionBr) {
+      return top + 28;
+    }
+
     if (seg.stops && seg.stops.length > 0) {
+      return (top + bot) / 2;
+    }
+    if (isLastSeg) {
       return (top + bot) / 2;
     }
     if (this.editable === false) {
       const leftCount = this._leftSegments ? this._leftSegments.length : this.segments.filter(s => s.side === 'left').length;
-      if (segIdx === leftCount - 1) return top + 24; // shift down towards bottom curve
-      if (segIdx === 0) return top + 8; // shift up towards top curve
+      if (segIdx === 0) return top + 8;
     }
-    return top + 16;
+    return top + 20;
   }
 
   getLeftAddBranchY(seg, top, bot, isLastSeg, segIdx) {
