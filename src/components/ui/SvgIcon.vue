@@ -121,8 +121,9 @@ const icons: Record<string, { viewBox: string; fill?: string; stroke?: string; s
   },
   'plus': {
     viewBox: '0 0 24 24',
-    fill: 'currentColor',
-    content: '<path d="M10 10V4H14V10H20V14H14V20H10V14H4V10H10Z" />'
+    stroke: 'currentColor',
+    strokeWidth: '2',
+    content: '<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />'
   },
   'trash': {
     viewBox: '0 0 24 24',

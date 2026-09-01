@@ -36,12 +36,12 @@ function shiftTime(delta) {
 
 /* ─────────── Data model ─────────── */
 const initialNodes = [
-  { id: 1, type: 'control', isTerminus: true, name: 'Кінцева 1', terminusStop: 'Центральна площа', waitMin: 5, waitMax: 9 },
+  { id: 1, type: 'control', isTerminus: true, name: 'Кінцева 1', terminusStop: '', waitMin: 5, waitMax: 9, side: 'top' },
   { id: 2, type: 'control', name: 'Контрольна 1', side: 'right' },
   { id: 3, type: 'control', name: 'Контрольна 2', side: 'right' },
   { id: 4, type: 'control', name: 'Контрольна 1 (Зворотня)', side: 'left' },
   { id: 5, type: 'control', name: 'Контрольна 2 (Зворотня)', side: 'left' },
-  { id: 6, type: 'control', isTerminus: true, name: 'Кінцева 2', terminusStop: 'Вокзал', waitMin: 5, waitMax: 9 },
+  { id: 6, type: 'control', isTerminus: true, name: 'Кінцева 2', terminusStop: '', waitMin: 5, waitMax: 9, side: 'bottom' },
 ];
 
 const initialSegments = [
@@ -118,7 +118,7 @@ const developerLinkedList = computed(() => {
         });
 
         const nextN = g.nodes[altSeg.nextNodeId];
-        if (nextN && !visited.has(nextN.id)) {
+        if (nextN && nextN.isBranchNode && nextN.nextSegId) {
           currAltSegId = nextN.nextSegId;
         } else {
           break;
@@ -131,11 +131,8 @@ const developerLinkedList = computed(() => {
         if (lastSec.stops.length > 0) {
           const lastSt = lastSec.stops[lastSec.stops.length - 1];
           const brConfig = node.branchConfig || {};
-          const parentSeg = g.segments[node.nextSegId];
-          let targetNextStopId = brConfig.targetStopId || (parentSeg ? parentSeg.firstStopId : null);
-          if (targetNextStopId) {
-            lastSt.nextStopId = targetNextStopId;
-          }
+          let targetNextStopId = (brConfig.targetType !== 'node' && brConfig.targetStopId) ? brConfig.targetStopId : null;
+          lastSt.nextStopId = targetNextStopId;
         }
       }
 
@@ -263,32 +260,30 @@ const routeData = computed(() => ({
   color: routeColor.value
 }));
 
-// Helper to get nodes along a rail side in travel order
-function getNodesForSide(side) {
-  const topTerm = nodes.value.find(n => !n.side || n.type === 'end');
-  const botTerm = nodes.value.filter(n => !n.side || n.type === 'end')[1] || topTerm;
-  if (side === 'left') {
-    const leftControls = nodes.value.filter(n => n.side === 'left');
-    return [botTerm, ...leftControls, topTerm].filter(Boolean);
-  } else {
-    const rightControls = nodes.value.filter(n => n.side === 'right');
-    return [topTerm, ...rightControls, botTerm].filter(Boolean);
+// Helper to resolve start and end node for any segment
+function getSegmentEndpoints(seg) {
+  if (!seg) return { fromNode: null, toNode: null };
+  if (seg.isBranch && seg.startNode && seg.endNode) {
+    return { fromNode: seg.startNode, toNode: seg.endNode };
   }
+  
+  const fromNodeId = seg.fromNodeId || Object.keys(routeGraph.value.nodes).find(nId => String(routeGraph.value.nodes[nId]?.nextSegId) === String(seg.id));
+  const toNodeId = seg.nextNodeId;
+  
+  const fromNode = nodes.value.find(n => String(n.id) === String(fromNodeId)) || (fromNodeId ? routeGraph.value.nodes[fromNodeId] : null);
+  const toNode = nodes.value.find(n => String(n.id) === String(toNodeId)) || (toNodeId ? routeGraph.value.nodes[toNodeId] : null);
+  
+  return { fromNode, toNode };
 }
 
 // Control nodes forming the currently edited segment
 const activeSegmentNodes = computed(() => {
   if (!activeSegment.value) return [];
-  const seg = activeSegment.value;
-  if (seg.isBranch) {
-    return [seg.startNode, seg.endNode].filter(Boolean);
+  const { fromNode, toNode } = getSegmentEndpoints(activeSegment.value);
+  if (fromNode && toNode) {
+    return [fromNode, toNode];
   }
-  const side = seg.side || 'right';
-  const sideNodes = getNodesForSide(side);
-  const sideSegs = segments.value.filter(s => s.side === side || (!s.side && side === 'right'));
-  const idx = sideSegs.findIndex(s => s.id === seg.id);
-  if (idx === -1 || !sideNodes[idx] || !sideNodes[idx+1]) return [];
-  return [sideNodes[idx], sideNodes[idx+1]];
+  return [];
 });
 
 /* ─────────── Mutations ─────────── */
@@ -519,46 +514,123 @@ const editNode = ref(null);
 /* ─────────── Totals ─────────── */
 const totalStops = computed(() => segments.value.reduce((a, s) => a + s.stops.length, 0));
 const firstTerminus = computed(() => {
-  const top = nodes.value.find(n => !n.side);
-  if (top && top.isTerminus) return top;
-  
-  const right = nodes.value.find(n => n.side === 'right' && n.isTerminus);
-  if (right) return right;
-  
-  const bot = nodes.value.filter(n => !n.side)[1];
-  if (bot && bot.isTerminus) return bot;
-  
-  const lefts = nodes.value.filter(n => n.side === 'left');
-  for (let i = lefts.length - 1; i >= 0; i--) {
-    if (lefts[i].isTerminus) return lefts[i];
-  }
-  
-  return endNodes.value[0];
+  return endNodes.value[0] || null;
 });
 
 const totalTime  = computed(() => {
   const travel = segments.value.reduce((a, s) => a + Number(s.travelTime || 0), 0);
   let wait = endNodes.value.reduce((a, n) => a + Number(n.waitMin || 0), 0);
-  if (firstTerminus.value) {
+  if (firstTerminus.value && endNodes.value.length > 1) {
     wait -= Number(firstTerminus.value.waitMin || 0);
   }
   return travel + wait;
 });
 const endNodes   = computed(() => nodes.value.filter(n => n.isTerminus));
-const topNode    = computed(() => nodes.value.find(n => !n.side) || endNodes.value[0]);
-const bottomNode = computed(() => nodes.value.filter(n => !n.side)[1] || nodes.value.find(n => !n.side) || endNodes.value[1]);
+const topNode    = computed(() => nodes.value.find(n => !n.side || n.side === 'top') || nodes.value[0] || null);
+const bottomNode = computed(() => nodes.value.find(n => n.side === 'bottom') || nodes.value.filter(n => !n.side)[1] || null);
+
+/* ─────────── Validation & Errors ─────────── */
+const isErrorDetailsOpen = ref(false);
+
+const validationIssues = computed(() => {
+  const redErrors = [];
+  const yellowWarnings = [];
+
+  // 1. Red: Check if route has at least one terminus
+  const terminusCount = nodes.value.filter(n => n.isTerminus).length;
+  if (terminusCount === 0) {
+    redErrors.push({
+      id: 'no-terminus',
+      category: 'terminus',
+      severity: 'red',
+      title: 'Маршрут без кінцевої',
+      description: 'Необхідно встановити хоча б одну кінцеву зупинку'
+    });
+  }
+
+  // 2. Red: Check unassigned terminus stops and control nodes
+  nodes.value.forEach(node => {
+    if (node.type === 'virtual') return;
+
+    if (node.isTerminus) {
+      if (!node.realId && !node.terminusStop) {
+        redErrors.push({
+          id: `unassigned-terminus-${node.id}`,
+          nodeId: node.id,
+          category: 'terminus',
+          severity: 'red',
+          title: `Не призначена кінцева: ${node.name || 'Кінцева'}`,
+          description: 'Потрібно прив\'язати кінцеву зупинку'
+        });
+      }
+    } else {
+      // Regular control node
+      if (!node.realId) {
+        redErrors.push({
+          id: `unassigned-control-${node.id}`,
+          nodeId: node.id,
+          category: 'control',
+          severity: 'red',
+          title: `Не призначена контрольна: ${node.name || 'Контрольна'}`,
+          description: 'Потрібно прив\'язати контрольну точку'
+        });
+      }
+    }
+  });
+
+  // 3. Yellow: Check each unassigned regular stop along segments and branches
+  segments.value.forEach(seg => {
+    if (seg.stops && seg.stops.length > 0) {
+      const segName = getSegmentName(seg);
+      seg.stops.forEach(st => {
+        if (!st.realId) {
+          yellowWarnings.push({
+            id: `unassigned-stop-${st.id}`,
+            stopId: st.id,
+            category: 'stop',
+            severity: 'yellow',
+            title: `Не призначена зупинка: ${st.name || 'Зупинка'}`,
+            description: `${segName}`
+          });
+        }
+      });
+    }
+  });
+
+  // Also check branch section stops
+  branches.value.forEach(br => {
+    (br.sections || []).forEach(sec => {
+      (sec.stops || []).forEach(st => {
+        if (!st.realId) {
+          yellowWarnings.push({
+            id: `unassigned-br-stop-${st.id}`,
+            stopId: st.id,
+            category: 'stop',
+            severity: 'yellow',
+            title: `Не призначена зупинка: ${st.name || 'Зупинка'}`,
+            description: `Альтернатива: ${br.name || 'Розгалуження'}`
+          });
+        }
+      });
+    });
+  });
+
+  return {
+    redErrors,
+    yellowWarnings,
+    totalErrors: redErrors.length,
+    totalWarnings: yellowWarnings.length,
+    totalCount: redErrors.length + yellowWarnings.length
+  };
+});
 
 const getSegmentName = (seg) => {
   if (!seg) return 'Ділянка';
-  if (seg.isBranch && seg.startNode && seg.endNode) {
-    return `${seg.startNode.name} → ${seg.endNode.name}`;
+  const { fromNode, toNode } = getSegmentEndpoints(seg);
+  if (fromNode && toNode) {
+    return `${fromNode.name} → ${toNode.name}`;
   }
-  const side = seg.side || 'right';
-  const sideNodes = getNodesForSide(side);
-  const sideSegs = segments.value.filter(s => s.side === side || (!s.side && side === 'right'));
-  const idx = sideSegs.findIndex(s => s.id === seg.id);
-  if (idx === -1 || !sideNodes[idx] || !sideNodes[idx+1]) return 'Ділянка';
-  return `${sideNodes[idx].name} → ${sideNodes[idx+1].name}`;
+  return 'Ділянка';
 };
 
 /* ─────────── Sidebar Segment Editor ─────────── */
@@ -579,50 +651,41 @@ const activeSegment = computed(() => {
             if (secIdx === 0) {
               const mainSeg = segments.value[br.segIdx];
               if (mainSeg) {
-                const s = mainSeg.side || 'right';
-                const sNodes = nodes.value.filter(n => n.type === 'end' || n.side === s || !n.side);
-                const sSegs = segments.value.filter(sg => sg.side === s || !sg.side);
-                const i = sSegs.findIndex(sg => sg.id === mainSeg.id);
-                if (i !== -1 && sNodes[i] && sNodes[i+1]) {
-                   realStartNode = s === 'left' ? sNodes[i+1] : sNodes[i];
-                }
+                const { fromNode } = getSegmentEndpoints(mainSeg);
+                realStartNode = fromNode;
               }
             } else {
-              if (!br.nodes) br.nodes = [];
-              if (br.nodes[secIdx - 1]) realStartNode = br.nodes[secIdx - 1];
+              const validBrNodes = (br.nodes || []).filter(n => n && n.name !== 'Контрольна (альтернатива)');
+              if (validBrNodes[secIdx - 1]) realStartNode = validBrNodes[secIdx - 1];
               else {
-                br.nodes[secIdx - 1] = { id: 'br_node_' + br.id + '_' + (secIdx - 1), name: 'Контрольна', type: 'control' };
-                realStartNode = br.nodes[secIdx - 1];
+                realStartNode = { id: 'br_node_' + br.id + '_' + (secIdx - 1), name: 'Контрольна', type: 'control' };
               }
             }
             sec.startNode = realStartNode || { id: 'br_sn_' + sec.id, name: "З'єднання", realId: null };
 
             // Resolve real end node
             let realEndNode = null;
-            const brNodesLen = br.nodes ? br.nodes.length : 0;
+            const validBrNodes = (br.nodes || []).filter(n => n && n.name !== 'Контрольна (альтернатива)');
+            const brNodesLen = validBrNodes.length;
             if (secIdx < brNodesLen) {
-               realEndNode = br.nodes[secIdx];
+               realEndNode = validBrNodes[secIdx];
             } else {
-               if (br.finished) {
-                 if (!br.targetType || br.targetType === 'current') {
-                    const mainSeg = segments.value[br.segIdx];
-                    if (mainSeg) {
-                      const s = mainSeg.side || 'right';
-                      const sNodes = nodes.value.filter(n => n.type === 'end' || n.side === s || !n.side);
-                      const sSegs = segments.value.filter(sg => sg.side === s || !sg.side);
-                      const i = sSegs.findIndex(sg => sg.id === mainSeg.id);
-                      if (i !== -1 && sNodes[i] && sNodes[i+1]) {
-                         realEndNode = s === 'left' ? sNodes[i] : sNodes[i+1];
-                      }
-                    }
+               if (br.targetStopId) {
+                 const targetSeg = segments.value.find(s => s.stops && s.stops.some(st => String(st.id) === String(br.targetStopId)));
+                 if (targetSeg) {
+                   const { toNode } = getSegmentEndpoints(targetSeg);
+                   realEndNode = toNode;
                  }
-                 if (!realEndNode) {
-                   if (!br.mergeNode) br.mergeNode = { id: 'br_merge_' + br.id, name: "Злиття", realId: null };
-                   realEndNode = br.mergeNode;
+               }
+               if (!realEndNode && br.targetNodeId) {
+                 realEndNode = nodes.value.find(n => String(n.id) === String(br.targetNodeId));
+               }
+               if (!realEndNode) {
+                 const mainSeg = segments.value[br.segIdx];
+                 if (mainSeg) {
+                   const { toNode } = getSegmentEndpoints(mainSeg);
+                   realEndNode = toNode;
                  }
-               } else {
-                 if (!br.terminusNode) br.terminusNode = { id: 'br_term_' + br.id, name: 'Кінцева альтернативи', isTerminus: true, realId: null };
-                 realEndNode = br.terminusNode;
                }
             }
             sec.endNode = realEndNode || { id: 'br_en_' + sec.id, name: "Кінець гілки", realId: null };
@@ -633,13 +696,26 @@ const activeSegment = computed(() => {
             Object.defineProperty(sec, 'unifiedStops', {
               get() {
                 const branchStops = sec.stops || [];
-                const mainSeg = segments.value[br.segIdx];
                 const secIdx = br.sections.indexOf(sec);
                 const isLastSection = secIdx === br.sections.length - 1;
                 
-                if (br.finished && (!br.targetType || br.targetType === 'current') && mainSeg && isLastSection) {
-                   const mainStops = mainSeg.stops || [];
-                   return [...branchStops, ...mainStops];
+                if (br.finished && isLastSection) {
+                  let targetSeg = null;
+                  let mergeIdx = -1;
+                  if (br.targetStopId) {
+                    targetSeg = segments.value.find(s => s.stops && s.stops.some(st => String(st.id) === String(br.targetStopId)));
+                    if (targetSeg) {
+                      mergeIdx = targetSeg.stops.findIndex(st => String(st.id) === String(br.targetStopId));
+                    }
+                  }
+                  if (!targetSeg && (!br.targetType || br.targetType === 'current')) {
+                    targetSeg = segments.value[br.segIdx];
+                    mergeIdx = 0;
+                  }
+                  if (targetSeg && mergeIdx !== -1) {
+                    const postMergeStops = (targetSeg.stops || []).slice(mergeIdx);
+                    return [...branchStops, ...postMergeStops];
+                  }
                 }
                 return branchStops;
               },
@@ -676,22 +752,23 @@ const availableStops = computed(() => {
   }));
 });
 
-function assignRealStop(stopInSeg, realStopIdStr) {
+function assignRealStopToSegStop(stopId, realStopIdStr) {
+  const graphStop = routeGraph.value.stops[stopId];
+  if (!graphStop) return;
+
+  if (!realStopIdStr) {
+    graphStop.realId = null;
+    return;
+  }
   const realStopId = parseInt(realStopIdStr);
-  const realStop = availableStops.value.find(s => s.id === realStopId);
+  const realStop = availableStops.value.find(s => String(s.id) === String(realStopId));
   if (realStop) {
-    stopInSeg.realId = realStop.id;
-    stopInSeg.name = realStop.name;
+    graphStop.realId = realStop.id;
+    graphStop.name = realStop.name;
   }
 }
 
-function getStopDirection(realId) {
-  if (!realId) return '';
-  const realStop = availableStops.value.find(s => s.id === realId);
-  return realStop ? realStop.direction : '';
-}
-
-function createNewStopForSeg(stopInSeg, newName) {
+function createNewStopForSegStop(stopId, newName) {
   const newStopId = Date.now();
   stopsStore.addStop({
     stopId: newStopId,
@@ -703,47 +780,64 @@ function createNewStopForSeg(stopInSeg, newName) {
     longitude: 0,
     platformsCount: 1
   });
-  stopInSeg.realId = newStopId;
-  stopInSeg.name = newName;
+  const graphStop = routeGraph.value.stops[stopId];
+  if (graphStop) {
+    graphStop.realId = newStopId;
+    graphStop.name = newName;
+  }
+}
+
+function getStopDirection(realId) {
+  if (!realId) return '';
+  const realStop = availableStops.value.find(s => String(s.id) === String(realId));
+  return realStop ? realStop.direction : '';
 }
 
 function getStopType(realId) {
   if (!realId) return 'normal';
-  const realStop = availableStops.value.find(s => s.id === realId);
+  const realStop = availableStops.value.find(s => String(s.id) === String(realId));
   return realStop ? realStop.type : 'normal';
 }
 
-function assignRealStopToNode(node, realStopIdStr) {
+function assignRealStopToNode(nodeOrId, realStopIdStr) {
+  const nodeId = typeof nodeOrId === 'object' && nodeOrId !== null ? nodeOrId.id : nodeOrId;
+  const graphNode = routeGraph.value.nodes[nodeId];
+  if (!graphNode) return;
+
   if (!realStopIdStr) {
-    node.realId = null;
-    node.terminusStop = '';
-    node.name = node.isTerminus ? `Кінцева ${node.id}` : `Контрольна ${node.id}`;
+    graphNode.realId = null;
+    graphNode.terminusStop = '';
+    graphNode.name = graphNode.isTerminus ? `Кінцева ${graphNode.id}` : `Контрольна ${graphNode.id}`;
     return;
   }
   const realStopId = parseInt(realStopIdStr);
-  const realStop = availableStops.value.find(s => s.id === realStopId);
+  const realStop = availableStops.value.find(s => String(s.id) === String(realStopId));
   if (realStop) {
-    node.realId = realStop.id;
-    node.terminusStop = realStop.name;
-    node.name = realStop.name;
+    graphNode.realId = realStop.id;
+    graphNode.terminusStop = realStop.name;
+    graphNode.name = realStop.name;
   }
 }
 
-function createNewStopForNode(node, newName) {
+function createNewStopForNode(nodeOrId, newName) {
+  const nodeId = typeof nodeOrId === 'object' && nodeOrId !== null ? nodeOrId.id : nodeOrId;
+  const graphNode = routeGraph.value.nodes[nodeId];
+  if (!graphNode) return;
+
   const newStopId = Date.now();
   stopsStore.addStop({
     stopId: newStopId,
     name: newName,
-    directionComment: 'Кінцева',
-    type: 'end',
+    directionComment: graphNode.isTerminus ? 'Кінцева' : 'Контрольна точка',
+    type: graphNode.isTerminus ? 'end' : 'normal',
     directionCode: 1,
     latitude: 0,
     longitude: 0,
     platformsCount: 1
   });
-  node.realId = newStopId;
-  node.terminusStop = newName;
-  node.name = newName;
+  graphNode.realId = newStopId;
+  graphNode.terminusStop = newName;
+  graphNode.name = newName;
 }
 
 function makeTerminus(nodeId) {
@@ -762,7 +856,8 @@ function makeTerminus(nodeId) {
 }
 
 function removeTerminus(node) {
-  const graphNode = routeGraph.value.nodes[node.id];
+  const nodeId = typeof node === 'object' && node !== null ? node.id : node;
+  const graphNode = routeGraph.value.nodes[nodeId];
   if (graphNode) {
     graphNode.isTerminus = false;
     graphNode.realId = null;
@@ -775,19 +870,16 @@ function removeStopFromSeg(seg, stopOrIdx) {
   const stop = typeof stopOrIdx === 'number' ? seg.stops[stopOrIdx] : stopOrIdx;
   if (!stop) return;
   
-  const idx = seg.stops.findIndex(s => s.id === stop.id);
+  const idx = seg.stops ? seg.stops.findIndex(s => s.id === stop.id) : -1;
   if (idx !== -1) {
     removeStopGraph(routeGraph.value, seg.id, stop.id);
     return;
   }
   
-  if (seg.isBranch && seg.br && (!seg.br.targetType || seg.br.targetType === 'current')) {
-    const mainSeg = segments.value[seg.br.segIdx];
-    if (mainSeg && mainSeg.stops) {
-      const mIdx = mainSeg.stops.findIndex(s => s.id === stop.id);
-      if (mIdx !== -1) {
-        removeStopGraph(routeGraph.value, mainSeg.id, stop.id);
-      }
+  if (seg.isBranch && seg.br) {
+    const targetSeg = segments.value.find(s => s.stops && s.stops.some(st => String(st.id) === String(stop.id)));
+    if (targetSeg) {
+      removeStopGraph(routeGraph.value, targetSeg.id, stop.id);
     }
   }
 }
@@ -1246,6 +1338,92 @@ const canvasRef = ref(null);
         <span>{{ isSidebarOpen ? 'Сховати меню' : 'Показати меню' }}</span>
       </button>
 
+      <!-- ── Bottom-right Error & Validation Indicator ── -->
+      <div class="absolute bottom-5 right-5 z-40 flex flex-col items-end gap-2 pointer-events-auto select-none">
+        
+        <!-- Expanded Error Details Popover -->
+        <transition enter-active-class="transition duration-200 ease-out"
+                    enter-from-class="transform scale-95 opacity-0 translate-y-2"
+                    enter-to-class="transform scale-100 opacity-100 translate-y-0"
+                    leave-active-class="transition duration-150 ease-in"
+                    leave-from-class="transform scale-100 opacity-100 translate-y-0"
+                    leave-to-class="transform scale-95 opacity-0 translate-y-2">
+          <div v-if="isErrorDetailsOpen"
+               class="w-80 max-h-96 bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-gray-200/90 p-3.5 flex flex-col gap-2.5 overflow-hidden text-xs">
+            
+            <div class="flex items-center justify-between pb-2 border-b border-gray-100">
+              <div class="flex items-center gap-2 font-bold text-gray-800">
+                <span>Зауваження та помилки</span>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                  {{ validationIssues.totalCount }}
+                </span>
+              </div>
+              <button @click="isErrorDetailsOpen = false" class="text-gray-400 hover:text-gray-600 p-0.5 rounded cursor-pointer">✕</button>
+            </div>
+
+            <!-- List of issues -->
+            <div v-if="validationIssues.totalCount > 0" class="overflow-y-auto max-h-72 flex flex-col gap-1.5 pr-1">
+              
+              <!-- Red Errors -->
+              <div v-for="err in validationIssues.redErrors" :key="err.id"
+                   class="p-2.5 rounded-xl border bg-red-50/60 border-red-200/70 flex items-start gap-2.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0 mt-0.5"></span>
+                <div class="flex-1 min-w-0">
+                  <div class="font-bold text-gray-800 leading-tight text-xs">{{ err.title }}</div>
+                  <div class="text-[11px] text-gray-500 mt-0.5">{{ err.description }}</div>
+                </div>
+              </div>
+
+              <!-- Yellow Warnings (Unassigned stops) -->
+              <div v-for="warn in validationIssues.yellowWarnings" :key="warn.id"
+                   class="p-2.5 rounded-xl border bg-amber-50/60 border-amber-200/70 flex items-start gap-2.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-amber-400 shrink-0 mt-0.5"></span>
+                <div class="flex-1 min-w-0">
+                  <div class="font-bold text-gray-800 leading-tight text-xs">{{ warn.title }}</div>
+                  <div class="text-[11px] text-gray-500 mt-0.5">{{ warn.description }}</div>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- All good state in details -->
+            <div v-else class="py-4 px-2 text-center flex flex-col items-center gap-1.5 text-gray-500">
+              <div class="w-7 h-7 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-xs">✓</div>
+              <p class="font-bold text-gray-800 text-xs">Усі точки та зупинки призначено</p>
+              <p class="text-[11px] text-gray-400">Маршрут має кінцеву та всі зупинки прив'язані до бази.</p>
+            </div>
+
+          </div>
+        </transition>
+
+        <!-- Indicator Button: slightly bigger, showing red dot with count and yellow dot with count -->
+        <button @click="isErrorDetailsOpen = !isErrorDetailsOpen"
+                class="flex items-center gap-3 px-3.5 py-2 rounded-2xl shadow-lg border border-gray-200/90 backdrop-blur-md transition-all hover:scale-105 active:scale-95 cursor-pointer bg-white/95 hover:bg-white text-gray-800">
+          
+          <!-- Red error indicator (if red errors > 0) -->
+          <div v-if="validationIssues.redErrors.length > 0" class="flex items-center gap-1.5">
+            <span class="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse shrink-0"></span>
+            <span class="text-xs font-bold text-red-600 font-mono leading-none">{{ validationIssues.redErrors.length }}</span>
+          </div>
+
+          <!-- Divider if both red and yellow exist -->
+          <span v-if="validationIssues.redErrors.length > 0 && validationIssues.yellowWarnings.length > 0" class="w-px h-3.5 bg-gray-200"></span>
+
+          <!-- Yellow stop warning indicator (if yellow warnings > 0) -->
+          <div v-if="validationIssues.yellowWarnings.length > 0" class="flex items-center gap-1.5">
+            <span class="w-2.5 h-2.5 rounded-full bg-amber-400 shrink-0"></span>
+            <span class="text-xs font-bold text-amber-600 font-mono leading-none">{{ validationIssues.yellowWarnings.length }}</span>
+          </div>
+
+          <!-- All clean state (0 errors and 0 warnings) -->
+          <div v-if="validationIssues.totalCount === 0" class="flex items-center gap-1.5">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0"></span>
+            <span class="text-xs font-bold text-emerald-600 font-mono leading-none">0</span>
+          </div>
+
+        </button>
+      </div>
+
       <!-- ── Edit segment modal ── -->
       <Teleport to="body">
         <div v-if="editSeg"
@@ -1367,10 +1545,10 @@ const canvasRef = ref(null);
             <label class="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Прив'язка до бази</label>
             <div class="mb-5">
               <StopSelector 
-                v-model="routeGraph.nodes[editNode.id].realId" 
+                :model-value="routeGraph.nodes[editNode.id]?.realId" 
                 :stops="availableStops" 
-                @create="name => createNewStopForNode(editNode, name)"
-                @update:modelValue="id => assignRealStopToNode(editNode, id)"
+                @create="name => createNewStopForNode(editNode.id, name)"
+                @update:modelValue="id => assignRealStopToNode(editNode.id, id)"
               />
             </div>
 
@@ -1457,10 +1635,10 @@ const canvasRef = ref(null);
               <div class="mt-1">
                 <label class="text-[9px] font-bold text-gray-400 uppercase block mb-1">Прив'язка до бази</label>
                 <StopSelector 
-                  v-model="routeGraph.nodes[node.id].realId" 
+                  :model-value="routeGraph.nodes[node.id]?.realId" 
                   :stops="availableStops" 
-                  @create="name => createNewStopForNode(node, name)"
-                  @update:modelValue="id => assignRealStopToNode(node, id)"
+                  @create="name => createNewStopForNode(node.id, name)"
+                  @update:modelValue="id => assignRealStopToNode(node.id, id)"
                 />
               </div>
 
@@ -1662,10 +1840,10 @@ const canvasRef = ref(null);
                <div v-for="node in activeSegmentNodes" :key="'cn-' + node.id" class="mt-2 flex items-center gap-1">
                  <span class="text-xs font-medium w-1/3 truncate" :title="node.name">{{ node.name }}</span>
                  <StopSelector 
-                   v-model="routeGraph.nodes[node.id].realId" 
+                   :model-value="routeGraph.nodes[node.id]?.realId" 
                    :stops="availableStops" 
-                   @create="name => createNewStopForNode(node, name)"
-                   @update:modelValue="id => assignRealStopToNode(node, id)"
+                   @create="name => createNewStopForNode(node.id, name)"
+                   @update:modelValue="id => assignRealStopToNode(node.id, id)"
                  />
                </div>
             </div>
@@ -1709,10 +1887,10 @@ const canvasRef = ref(null);
                 <div class="mt-2">
                   <label class="text-[9px] font-bold text-gray-400 uppercase block mb-1">Прив'язка до бази</label>
                   <StopSelector 
-                    v-model="routeGraph.stops[stop.id].realId" 
+                    :model-value="routeGraph.stops[stop.id]?.realId" 
                     :stops="availableStops" 
-                    @create="name => createNewStopForNode(stop, name)"
-                    @update:modelValue="id => assignRealStopToNode(stop, id)"
+                    @create="name => createNewStopForSegStop(stop.id, name)"
+                    @update:modelValue="id => assignRealStopToSegStop(stop.id, id)"
                   />
                   <div v-if="stop.realId && getStopDirection(stop.realId)" class="mt-1.5 flex items-start gap-1">
                     <svg class="w-3 h-3 text-gray-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>

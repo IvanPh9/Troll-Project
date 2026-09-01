@@ -18,21 +18,33 @@ export function migrateToGraph(nodesArr, segmentsArr, branchesArr) {
   const segments = JSON.parse(JSON.stringify(segmentsArr));
   const branches = JSON.parse(JSON.stringify(branchesArr || []));
 
-  const rightNodes = nodes.filter(n => n.side === 'right' || !n.side);
-  const leftNodes = nodes.filter(n => n.side === 'left' || !n.side).reverse();
+  const topNode = nodes.find(n => n.side === 'top' || (!n.side && nodes.indexOf(n) === 0));
+  const bottomNode = nodes.find(n => n.side === 'bottom' || (!n.side && nodes.indexOf(n) > 0));
+  const rightNodes = nodes.filter(n => n.side === 'right');
+  const leftNodes = nodes.filter(n => n.side === 'left');
+
   const rightSegs = segments.filter(s => s.side === 'right' || (!s.side && segments.indexOf(s) < Math.ceil(segments.length / 2)));
-  const leftSegs = segments.filter(s => s.side === 'left' || (!s.side && segments.indexOf(s) >= Math.ceil(segments.length / 2))).reverse();
+  const leftSegs = segments.filter(s => s.side === 'left' || (!s.side && segments.indexOf(s) >= Math.ceil(segments.length / 2)));
 
   nodes.forEach(n => {
-    graph.nodes[n.id] = { ...n, nextSegId: null, altSegId: null };
+    let side = n.side;
+    if (!side) {
+      if (topNode && n.id === topNode.id) side = 'top';
+      else if (bottomNode && n.id === bottomNode.id) side = 'bottom';
+      else side = 'right';
+    }
+    graph.nodes[n.id] = { ...n, side, nextSegId: null, altSegId: null };
   });
 
-  graph.startNodeId = rightNodes[0].id;
+  graph.startNodeId = topNode ? topNode.id : nodes[0].id;
+
+  // Ordered list of nodes along right rail: [topNode, ...rightNodes, bottomNode]
+  const fullRightNodes = [topNode, ...rightNodes, bottomNode].filter(Boolean);
 
   rightSegs.forEach((seg, i) => {
-    const fromNode = rightNodes[i];
-    const toNode = rightNodes[i + 1] || leftNodes[0];
-    if (graph.nodes[fromNode.id]) graph.nodes[fromNode.id].nextSegId = seg.id;
+    const fromNode = fullRightNodes[i];
+    const toNode = fullRightNodes[i + 1] || bottomNode || leftNodes[0] || topNode;
+    if (fromNode && graph.nodes[fromNode.id]) graph.nodes[fromNode.id].nextSegId = seg.id;
     
     let firstStopId = null, prevStop = null;
     (seg.stops || []).forEach(st => {
@@ -46,10 +58,13 @@ export function migrateToGraph(nodesArr, segmentsArr, branchesArr) {
     graph.segments[seg.id] = { ...seg, stops: undefined, side: 'right', nextNodeId: toNode ? toNode.id : null, firstStopId };
   });
 
+  // Ordered list of nodes along left rail: [bottomNode, ...leftNodes, topNode]
+  const fullLeftNodes = [bottomNode, ...leftNodes, topNode].filter(Boolean);
+
   leftSegs.forEach((seg, i) => {
-    const fromNode = leftNodes[i];
-    const toNode = leftNodes[i + 1] || rightNodes[0];
-    if (graph.nodes[fromNode.id]) graph.nodes[fromNode.id].nextSegId = seg.id;
+    const fromNode = fullLeftNodes[i];
+    const toNode = fullLeftNodes[i + 1] || topNode || fullRightNodes[0];
+    if (fromNode && graph.nodes[fromNode.id]) graph.nodes[fromNode.id].nextSegId = seg.id;
     
     let firstStopId = null, prevStop = null;
     (seg.stops || []).forEach(st => {
@@ -124,7 +139,6 @@ export function traverseGraph(graph) {
 
   const visitedNodes = new Set();
   let currentNodeId = graph.startNodeId;
-  let isLeftRail = false;
 
   const leftSegs = [];
   const leftNodes = [];
@@ -134,13 +148,12 @@ export function traverseGraph(graph) {
     if (!node) break;
     
     visitedNodes.add(currentNodeId);
-    if (node.isTerminus && visitedNodes.size > 1) isLeftRail = true;
     
-    const outNode = { ...node, side: node.isTerminus ? undefined : (isLeftRail ? 'left' : 'right') };
+    const effectiveSide = (node.side === 'top' || node.side === 'bottom') ? undefined : node.side;
+    const outNode = { ...node, side: effectiveSide };
     
-    if (isLeftRail) {
-      if (node.isTerminus) result.nodes.push(outNode);
-      else leftNodes.unshift(outNode); // prepend for left side visual reversing
+    if (node.side === 'left') {
+      leftNodes.unshift(outNode); // prepend for left side visual reversing
     } else {
       result.nodes.push(outNode);
     }
@@ -159,9 +172,15 @@ export function traverseGraph(graph) {
           } else break;
         }
 
-        const segSide = seg.side || (isLeftRail ? 'left' : 'right');
-        const outSeg = { ...seg, stops, side: segSide };
-        if (isLeftRail) {
+        const segSide = seg.side || (node.side === 'left' ? 'left' : 'right');
+        const outSeg = { 
+          ...seg, 
+          stops, 
+          side: segSide,
+          fromNodeId: node.id,
+          nextNodeId: seg.nextNodeId
+        };
+        if (segSide === 'left') {
           leftSegs.unshift(outSeg);
         } else {
           result.segments.push(outSeg);
@@ -210,11 +229,11 @@ export function traverseGraph(graph) {
         br.sections.push({ ...altSeg, stops });
         
         const nextN = graph.nodes[altSeg.nextNodeId];
-        if (nextN && !visitedNodes.has(nextN.id)) {
+        if (nextN && nextN.isBranchNode && nextN.nextSegId && !visitedNodes.has(nextN.id)) {
           br.nodes.push({ ...nextN });
           currentAltSegId = nextN.nextSegId;
         } else {
-          br.targetNodeId = altSeg.nextNodeId;
+          br.targetNodeId = altSeg.nextNodeId || (parentSeg ? parentSeg.nextNodeId : null);
           currentAltSegId = null;
         }
       }
@@ -454,23 +473,37 @@ export function removeStopGraph(graph, segId, stopId) {
   const seg = graph.segments[segId];
   if (!seg || !seg.firstStopId) return;
 
+  const nextStopId = graph.stops[stopId]?.nextStopId || null;
+  let prevStopId = null;
+
   if (seg.firstStopId === stopId) {
-    seg.firstStopId = graph.stops[stopId].nextStopId;
-    delete graph.stops[stopId];
-    return;
+    seg.firstStopId = nextStopId;
+  } else {
+    let curr = seg.firstStopId;
+    let prev = null;
+    while (curr && curr !== stopId) {
+      prev = curr;
+      curr = graph.stops[curr]?.nextStopId;
+    }
+    if (curr === stopId && prev) {
+      prevStopId = prev;
+      graph.stops[prev].nextStopId = nextStopId;
+    }
   }
 
-  let curr = seg.firstStopId;
-  let prev = null;
-  while (curr && curr !== stopId) {
-    prev = curr;
-    curr = graph.stops[curr].nextStopId;
-  }
+  delete graph.stops[stopId];
 
-  if (curr === stopId && prev) {
-    graph.stops[prev].nextStopId = graph.stops[stopId].nextStopId;
-    delete graph.stops[stopId];
-  }
+  // Update any branch targets that were pointing to this deleted stop
+  // Along movement direction: if nextStopId exists, merge into it; otherwise connect directly to next control node
+  Object.values(graph.nodes).forEach(n => {
+    if (n.branchConfig && String(n.branchConfig.targetStopId) === String(stopId)) {
+      n.branchConfig.targetStopId = nextStopId || null;
+      if (!nextStopId) {
+        n.branchConfig.targetType = 'node';
+        n.branchConfig.targetNodeId = seg.nextNodeId;
+      }
+    }
+  });
 }
 
 export function removeNodeGraph(graph, nodeId) {
@@ -509,17 +542,7 @@ export function addBranchGraph(graph, parentSegId) {
   const startNode = Object.values(graph.nodes).find(n => n.nextSegId === parentSegId);
   if (!startNode) return;
 
-  const brNodeId = 'br_node_' + Date.now();
   const brSegId = 'br_seg_' + Date.now();
-
-  graph.nodes[brNodeId] = {
-    id: brNodeId,
-    type: 'control',
-    name: 'Контрольна (альтернатива)',
-    nextSegId: null,
-    altSegId: null,
-    isBranchNode: true
-  };
 
   graph.segments[brSegId] = {
     id: brSegId,
@@ -527,18 +550,20 @@ export function addBranchGraph(graph, parentSegId) {
     travelTime: 5,
     interval: parentSeg.interval,
     side: parentSeg.side,
-    nextNodeId: brNodeId,
+    nextNodeId: parentSeg.nextNodeId,
     firstStopId: null
   };
 
   startNode.branchConfig = {
     name: 'Альтернатива ' + (Object.values(graph.nodes).filter(n => n.branchConfig).length + 1),
     finished: false,
-    targetType: 'node',
-    targetNodeId: null
+    targetType: 'current',
+    targetNodeId: parentSeg.nextNodeId,
+    targetStopId: parentSeg.firstStopId || null,
+    bypassedMainState: 'question'
   };
   startNode.altSegId = brSegId;
-  return brNodeId;
+  return brSegId;
 }
 
 export function addBranchNodeGraph(graph, brStartNodeId, sectionIdx = 0, posMode = 'after') {
@@ -568,10 +593,17 @@ export function addBranchNodeGraph(graph, brStartNodeId, sectionIdx = 0, posMode
   const brNodeId = 'br_node_' + Date.now();
   const brSegId = 'br_seg_' + Date.now();
 
+  const allControls = Object.values(graph.nodes).filter(n => n.type === 'control');
+  const maxNum = allControls.reduce((max, n) => {
+    const match = n.name && n.name.match(/\d+/);
+    return match ? Math.max(max, parseInt(match[0], 10)) : max;
+  }, 0);
+  const nextNum = maxNum + 1;
+
   graph.nodes[brNodeId] = {
     id: brNodeId,
     type: 'control',
-    name: 'Контрольна',
+    name: 'Контрольна ' + nextNum,
     nextSegId: null,
     altSegId: null,
     isBranchNode: true

@@ -28,20 +28,6 @@ const isAssignRouteMode = computed(() => {
 // Розділив activeClass на activeBgClass та activeTextClass для правильного успадкування кольору іконками
 const navLinks = [
   {
-    path: '/base/drivers',
-    label: 'Водії',
-    activeBgClass: 'bg-blue-50/80 border-blue-400',
-    activeTextClass: 'text-blue-700',
-    icon: 'drivers'
-  },
-  {
-    path: '/base/vehicle',
-    label: 'Транспортні засоби',
-    activeBgClass: 'bg-sky-50/80 border-sky-400',
-    activeTextClass: 'text-sky-700',
-    icon: 'vehicle'
-  },
-  {
     path: '/base/stops',
     label: 'Зупинки',
     activeBgClass: 'bg-teal-50/80 border-teal-400',
@@ -70,6 +56,16 @@ const isMapRoute = computed(() => route.path.startsWith('/base/stops'))
 const isDriversPage = computed(() => route.path.startsWith('/base/drivers'))
 const isVehiclesPage = computed(() => route.path.startsWith('/base/vehicle'))
 const isConstructorRoute = computed(() => route.path.startsWith('/base/route/create'))
+
+const backDestination = computed(() => {
+  if (route.name === 'stop-detail' || (route.path.startsWith('/base/stops/') && !isStopsPage.value)) {
+    return '/base/stops'
+  }
+  if (route.name === 'driver-profile' || route.name === 'driver-add' || (route.path.startsWith('/base/drivers/') && route.path !== '/base/drivers')) {
+    return '/base/drivers'
+  }
+  return '/'
+})
 
 const showActions = computed(() => isDriversPage.value || isVehiclesPage.value || isStopsPage.value)
 
@@ -155,8 +151,8 @@ const textSpring = {
     <nav v-if="!isConstructorRoute" class="flex flex-wrap justify-center items-center gap-3 p-4 fixed inset-x-0 z-100">
 
       <router-link
-          to="/"
-          class="flex flex-shrink-0 items-center justify-center w-11 h-11 rounded-full bg-white/80 backdrop-blur-md border border-gray-300 shadow-[0_8px_8px_rgba(31,38,135,0.04)] hover:bg-red-50 hover:border-red-300 hover:text-red-600 text-gray-700 transition-colors"
+          :to="backDestination"
+          class="flex flex-shrink-0 items-center justify-center w-11 h-11 rounded-full bg-white/55 backdrop-blur-xl border border-[rgb(222,222,227)] shadow-[0_8px_8px_rgba(31,38,135,0.04),_inset_0_1px_1px_rgba(255,255,255,0.6)] hover:bg-red-50/70 hover:border-red-300/80 hover:text-red-600 hover:scale-105 active:scale-95 text-gray-700 transition-all duration-300"
       >
         <SvgIcon name="arrow-left" class="w-5 h-5" />
       </router-link>

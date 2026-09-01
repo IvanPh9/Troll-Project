@@ -178,8 +178,9 @@ onMounted(() => {
       zoomControl: true
     })
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(leafletMap)
 
     markersLayer = L.layerGroup().addTo(leafletMap)
@@ -324,25 +325,12 @@ watch(stops, () => {
     <!-- ПРАВА КОЛОНКА (Вся інформація у власному окремому заокругленому боксі) -->
     <div class="w-full md:w-2/3 flex flex-col bg-white rounded-3xl overflow-hidden h-full p-8 shadow-sm border-none">
       
-      <!-- Заголовок та кнопка створення нового потоку з кнопкою Назад -->
+      <!-- Заголовок та кнопка створення нового напрямку -->
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-5 border-b border-gray-100 pb-6 mb-6 flex-shrink-0">
-        <div class="flex items-center gap-5">
-          <button
-            @click="goBack"
-            class="group flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 transition-all cursor-pointer text-slate-700 font-bold border-none shadow-none"
-            title="Повернутися до списку"
-          >
-            <SvgIcon name="chevron-left" class="w-4.5 h-4.5 text-slate-500 group-hover:-translate-x-1 transition-transform" />
-            Назад
-          </button>
-          
-          <div class="h-10 w-px bg-slate-200 hidden sm:block"></div>
-          
-          <div class="flex flex-col">
-            <h2 class="text-3xl font-bold text-gray-800 leading-tight tracking-tight">{{ stopName }}</h2>
-            <div class="mt-1.5">
-              <span class="text-[10px] text-teal-700 bg-teal-50 px-2.5 py-1 rounded-lg font-bold uppercase tracking-wider">Станція мережі</span>
-            </div>
+        <div class="flex flex-col">
+          <h2 class="text-3xl font-bold text-gray-800 leading-tight tracking-tight">{{ stopName }}</h2>
+          <div class="mt-1.5">
+            <span class="text-[10px] text-teal-700 bg-teal-50 px-2.5 py-1 rounded-lg font-bold uppercase tracking-wider">Станція мережі</span>
           </div>
         </div>
         

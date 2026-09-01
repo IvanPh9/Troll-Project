@@ -10,6 +10,11 @@ const router = createRouter({
             component: WelcomeView
         },
         {
+            path: '/symbols',
+            name: 'symbols',
+            component: () => import('../views/SymbolsView.vue')
+        },
+        {
 
             path: '/base',
             name: 'base',

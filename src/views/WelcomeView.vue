@@ -24,6 +24,11 @@
         <h3 class="text-2xl font-semibold">Аналіз та редагування розкладу</h3>
         <p>Регулювання створених розкладів</p>
       </div>
+
+      <router-link to="/symbols" class="bg-white/80 border border-slate-300 p-4 rounded-2xl shadow-xs text-center transition-all transform hover:scale-102 hover:shadow-md duration-300 ease-in-out mr-8 ml-8 text-slate-700 hover:text-slate-900 flex items-center justify-center gap-2 text-sm font-medium">
+        <span>📋</span>
+        <span>Довідник символів та іконок системи (SvgIcon)</span>
+      </router-link>
     </div>
   </div>
 </template>

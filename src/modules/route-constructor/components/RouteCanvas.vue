@@ -521,81 +521,67 @@
                 style="cursor: pointer;"
                 @click="zoomToSegment('left', i)" />
 
-          <!-- Segment Stops -->
-          <g class="anim-row stop-item-left" v-for="(stop, stIdx) in seg.stops" :key="'lstop-' + stop.id"
-             :style="{ transform: 'translate(0px, ' + layout.stopY(seg, layout.leftNodeY[i], layout.leftNodeY[i+1], stIdx, i === layout.leftSegments.length - 1, segments.indexOf(seg)) + 'px)' }"
+          <!-- Left Rail Stops -->
+          <g v-for="(st, stIdx) in seg.stops || []" :key="'lst-' + st.id"
              style="cursor:pointer;"
-             @click.stop="zoomToSegment('left', i)">
-            <line :x1="layout.leftX" y1="0"
-                  :x2="layout.leftX - 12" y2="0"
-                  :stroke="color" stroke-width="4.5" stroke-linecap="square"/>
-            <text :x="layout.leftX - 18" y="4"
+             @click.stop="$emit('edit-stop', st)">
+            <line :x1="layout.leftX"
+                  :y1="layout.stopY(seg, layout.leftNodeY[i], layout.leftNodeY[i+1], stIdx, i === layout.leftSegments.length - 1, segments.indexOf(seg))"
+                  :x2="layout.leftX - 12"
+                  :y2="layout.stopY(seg, layout.leftNodeY[i], layout.leftNodeY[i+1], stIdx, i === layout.leftSegments.length - 1, segments.indexOf(seg))"
+                  :stroke="color" :stroke-width="layout.TICK_W" stroke-linecap="square" />
+            <circle :cx="layout.leftX - 12"
+                    :cy="layout.stopY(seg, layout.leftNodeY[i], layout.leftNodeY[i+1], stIdx, i === layout.leftSegments.length - 1, segments.indexOf(seg))"
+                    r="2.5" :fill="color" />
+            <text :x="layout.leftX - 18"
+                  :y="layout.stopY(seg, layout.leftNodeY[i], layout.leftNodeY[i+1], stIdx, i === layout.leftSegments.length - 1, segments.indexOf(seg)) + 4"
                   font-size="12" font-weight="500" fill="#111827" text-anchor="end">
-              {{ stop.name }}
+              {{ st.name }}
             </text>
           </g>
 
-          <!-- Question Circle for Bypassed Main Rail Segment (Left Rail) -->
+          <!-- Clean Bypassed Add Pill on Left Rail -->
           <template v-for="br in getBypassedBranchesForSeg(seg)" :key="'lbr-q-' + br.id">
-            <g v-if="br.finished && (br.targetType === 'current' || !br.targetType || br.targetStopId || br.bypassedMainState === 'add_pills') && (editable && !localBranchMode)"
+            <g v-if="br.finished && (editable && !localBranchMode)"
                class="anim-row"
-               :style="br.bypassedMainState === 'add_pills' ? getBypassedTopPillStyle(br, i, false) : getBypassedQuestionStyle(br, i, false)"
-               style="cursor: pointer;"
-               @click.stop="$emit('config-branch', br)">
+               :style="getBypassedTopPillStyle(br, i, false)">
+              <rect :x="activeExpandedPill === ('bypassed-' + br.id + '-' + seg.id) ? (layout.leftX - 96) : (layout.leftX - 82)" y="-14" :width="activeExpandedPill === ('bypassed-' + br.id + '-' + seg.id) ? 78 : 64" height="28" rx="14"
+                    fill="#ffffff" stroke="#9ca3af" stroke-width="1.5"
+                    style="box-shadow: 0 1px 2px rgba(0,0,0,0.05); transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), x 0.3s cubic-bezier(0.4, 0, 0.2, 1);" />
               
-              <g v-if="!br.bypassedMainState || br.bypassedMainState === 'question'">
-                <circle cx="0" cy="0" r="14" fill="#ffffff" />
-                <SvgIcon name="question-circle" :x="-14" :y="-14" :width="28" :height="28" class="text-blue-600 fill-current shadow-md transition-transform hover:scale-110" />
-                <text x="22" y="4"
-                      font-size="11" font-weight="700" fill="#1D43EF" font-style="italic" text-anchor="start"
-                      style="pointer-events:none;">Що робити з ділянкою?</text>
+              <!-- Collapsed: Plus Icon -->
+              <g v-if="activeExpandedPill !== ('bypassed-' + br.id + '-' + seg.id)" style="cursor:pointer;" title="Додати контрольну точку" @click.stop="togglePillExpand('bypassed-' + br.id + '-' + seg.id)">
+                <rect :x="layout.leftX - 82" y="-14" width="32" height="28" fill="transparent" rx="14"/>
+                <g :transform="'translate(' + (layout.leftX - 71.3) + ', -5.3)'" fill="#4b5563">
+                  <path transform="scale(0.7)" d="M1.00195 8.36719H6.36328V13.7285C6.36328 14.2734 6.81152 14.7305 7.36523 14.7305C7.91895 14.7305 8.36719 14.2734 8.36719 13.7285V8.36719H13.7285C14.2734 8.36719 14.7305 7.91895 14.7305 7.36523C14.7305 6.81152 14.2734 6.36328 13.7285 6.36328H8.36719V1.00195C8.36719 0.457031 7.91895 0 7.36523 0C6.81152 0 6.36328 0.457031 6.36328 1.00195V6.36328H1.00195C0.457031 6.36328 0 6.81152 0 7.36523C0 7.91895 0.457031 8.36719 1.00195 8.36719Z" />
+                </g>
               </g>
-              <g v-else-if="br.bypassedMainState === 'empty'">
-                <circle cx="0" cy="0" r="10" fill="#ffffff" />
-                <SvgIcon name="question-circle" :x="-10" :y="-10" :width="20" :height="20" class="text-gray-400 fill-current shadow-sm transition-transform hover:scale-110" />
+              <!-- Expanded: Two Arrow Options -->
+              <g v-else>
+                <!-- Option 2: Add Control Node After End (Curved Arrow) -->
+                <g style="cursor:pointer;" title="Додати після цієї контрольної точки на кінці" @click.stop="handleAddNode('left', segments.indexOf(seg), 'after')">
+                  <rect :x="layout.leftX - 96" y="-14" width="23" height="28" fill="transparent" rx="11.5"/>
+                  <g :transform="'translate(' + (layout.leftX - 87.5) + ', -4.7)'" fill="#4b5563">
+                    <path transform="scale(0.55)" d="M6.04688 16.5059C6.61816 16.5059 6.99609 16.1191 6.99609 15.5742C6.99609 15.293 6.88184 15.082 6.71484 14.9062L4.44727 12.7002L2.90039 11.3994L4.93945 11.4873H15.917C18.1143 11.4873 19.0459 10.4941 19.0459 8.34082V3.12891C19.0459 0.931641 18.1143 0 15.917 0H11.0391C10.4678 0 10.0635 0.430664 10.0635 0.958008C10.0635 1.48535 10.459 1.91602 11.0391 1.91602H15.873C16.7695 1.91602 17.1475 2.29395 17.1475 3.18164V8.2793C17.1475 9.18457 16.7607 9.5625 15.873 9.5625H4.93945L2.90039 9.65918L4.44727 8.34961L6.71484 6.14355C6.88184 5.97656 6.99609 5.76562 6.99609 5.47559C6.99609 4.93066 6.61816 4.54395 6.04688 4.54395C5.80957 4.54395 5.5459 4.64941 5.35254 4.84277L0.307617 9.80859C0.105469 10.002 0 10.2656 0 10.5293C0 10.7842 0.105469 11.0479 0.307617 11.2412L5.35254 16.2158C5.5459 16.4004 5.80957 16.5059 6.04688 16.5059Z" />
+                  </g>
+                </g>
+                <!-- Option 1: Add Control Node Before End (Straight Arrow) -->
+                <g style="cursor:pointer;" title="Вставити перед контрольною кінця ділянки" @click.stop="handleAddNode('left', segments.indexOf(seg), 'bypassed_split')">
+                  <rect :x="layout.leftX - 73" y="-14" width="23" height="28" fill="transparent"/>
+                  <g :transform="'translate(' + (layout.leftX - 59.1) + ', -4.1) scale(-1, 1)'" fill="#4b5563">
+                    <path transform="scale(0.58)" d="M0 6.82031C0 7.08398 0.114258 7.34766 0.316406 7.54102L6.11719 13.333C6.32812 13.5352 6.55664 13.6318 6.81152 13.6318C7.36523 13.6318 7.76953 12.3363 7.76953 12.7002C7.76953 12.4189 7.66406 12.1816 7.47949 12.0059L5.50195 10.002L2.95312 7.67285L5.00098 7.7959H15.6533C16.2334 7.7959 16.6377 7.3916 16.6377 6.82031C16.6377 6.24023 16.2334 5.83594 15.6533 5.83594H5.00098L2.96191 5.95898L5.50195 3.62988L7.47949 1.62598C7.66406 1.4502 7.76953 1.21289 7.76953 0.931641C7.76953 0.395508 7.36523 0 6.81152 0C6.55664 0 6.31934 0.0966797 6.09082 0.316406L0.316406 6.09082C0.114258 6.28418 0 6.54785 0 6.82031Z" />
+                  </g>
+                </g>
               </g>
-              <g v-else-if="br.bypassedMainState === 'add_pills'">
-                <!-- Clean Bypassed Add Pill on Left Rail -->
-                <g class="anim-row" style="pointer-events: auto;">
-                  <rect :x="activeExpandedPill === ('bypassed-' + br.id + '-' + seg.id) ? (layout.leftX - 96) : (layout.leftX - 82)" y="-14" :width="activeExpandedPill === ('bypassed-' + br.id + '-' + seg.id) ? 78 : 64" height="28" rx="14"
-                        fill="#ffffff" stroke="#9ca3af" stroke-width="1.5"
-                        style="box-shadow: 0 1px 2px rgba(0,0,0,0.05); transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), x 0.3s cubic-bezier(0.4, 0, 0.2, 1);" />
-                  
-                  <!-- Collapsed: Plus Icon -->
-                  <g v-if="activeExpandedPill !== ('bypassed-' + br.id + '-' + seg.id)" style="cursor:pointer;" title="Додати контрольну точку" @click.stop="togglePillExpand('bypassed-' + br.id + '-' + seg.id)">
-                    <rect :x="layout.leftX - 82" y="-14" width="32" height="28" fill="transparent" rx="14"/>
-                    <g :transform="'translate(' + (layout.leftX - 71.3) + ', -5.3)'" fill="#4b5563">
-                      <path transform="scale(0.7)" d="M1.00195 8.36719H6.36328V13.7285C6.36328 14.2734 6.81152 14.7305 7.36523 14.7305C7.91895 14.7305 8.36719 14.2734 8.36719 13.7285V8.36719H13.7285C14.2734 8.36719 14.7305 7.91895 14.7305 7.36523C14.7305 6.81152 14.2734 6.36328 13.7285 6.36328H8.36719V1.00195C8.36719 0.457031 7.91895 0 7.36523 0C6.81152 0 6.36328 0.457031 6.36328 1.00195V6.36328H1.00195C0.457031 6.36328 0 6.81152 0 7.36523C0 7.91895 0.457031 8.36719 1.00195 8.36719Z" />
-                    </g>
-                  </g>
-                  <!-- Expanded: Two Arrow Options -->
-                  <g v-else>
-                    <!-- Option 2: Add Control Node After End (Curved Arrow) -->
-                    <g style="cursor:pointer;" title="Додати після цієї контрольної точки на кінці" @click.stop="handleAddNode('left', segments.indexOf(seg), 'after')">
-                      <rect :x="layout.leftX - 96" y="-14" width="23" height="28" fill="transparent" rx="11.5"/>
-                      <g :transform="'translate(' + (layout.leftX - 87.5) + ', -4.7)'" fill="#4b5563">
-                        <path transform="scale(0.55)" d="M6.04688 16.5059C6.61816 16.5059 6.99609 16.1191 6.99609 15.5742C6.99609 15.293 6.88184 15.082 6.71484 14.9062L4.44727 12.7002L2.90039 11.3994L4.93945 11.4873H15.917C18.1143 11.4873 19.0459 10.4941 19.0459 8.34082V3.12891C19.0459 0.931641 18.1143 0 15.917 0H11.0391C10.4678 0 10.0635 0.430664 10.0635 0.958008C10.0635 1.48535 10.459 1.91602 11.0391 1.91602H15.873C16.7695 1.91602 17.1475 2.29395 17.1475 3.18164V8.2793C17.1475 9.18457 16.7607 9.5625 15.873 9.5625H4.93945L2.90039 9.65918L4.44727 8.34961L6.71484 6.14355C6.88184 5.97656 6.99609 5.76562 6.99609 5.47559C6.99609 4.93066 6.61816 4.54395 6.04688 4.54395C5.80957 4.54395 5.5459 4.64941 5.35254 4.84277L0.307617 9.80859C0.105469 10.002 0 10.2656 0 10.5293C0 10.7842 0.105469 11.0479 0.307617 11.2412L5.35254 16.2158C5.5459 16.4004 5.80957 16.5059 6.04688 16.5059Z" />
-                      </g>
-                    </g>
-                    <!-- Option 1: Add Control Node Before End (Straight Arrow) -->
-                    <g style="cursor:pointer;" title="Вставити перед контрольною кінця ділянки" @click.stop="handleAddNode('left', segments.indexOf(seg), 'bypassed_split')">
-                      <rect :x="layout.leftX - 73" y="-14" width="23" height="28" fill="transparent"/>
-                      <g :transform="'translate(' + (layout.leftX - 59.1) + ', -4.1) scale(-1, 1)'" fill="#4b5563">
-                        <path transform="scale(0.58)" d="M0 6.82031C0 7.08398 0.114258 7.34766 0.316406 7.54102L6.11719 13.333C6.32812 13.5352 6.55664 13.6318 6.81152 13.6318C7.36523 13.6318 7.76953 12.3363 7.76953 12.7002C7.76953 12.4189 7.66406 12.1816 7.47949 12.0059L5.50195 10.002L2.95312 7.67285L5.00098 7.7959H15.6533C16.2334 7.7959 16.6377 7.3916 16.6377 6.82031C16.6377 6.24023 16.2334 5.83594 15.6533 5.83594H5.00098L2.96191 5.95898L5.50195 3.62988L7.47949 1.62598C7.66406 1.4502 7.76953 1.21289 7.76953 0.931641C7.76953 0.395508 7.36523 0 6.81152 0C6.55664 0 6.31934 0.0966797 6.09082 0.316406L0.316406 6.09082C0.114258 6.28418 0 6.54785 0 6.82031Z" />
-                      </g>
-                    </g>
-                  </g>
 
-                  <!-- Vertical Divider -->
-                  <line :x1="layout.leftX - 50" y1="-10" :x2="layout.leftX - 50" y2="10" stroke="#9ca3af" stroke-width="1" />
+              <!-- Vertical Divider -->
+              <line :x1="layout.leftX - 50" y1="-10" :x2="layout.leftX - 50" y2="10" stroke="#9ca3af" stroke-width="1" />
 
-                  <!-- Add Stop sub-button -->
-                  <g style="cursor:pointer;" title="Додати зупинку усередині цієї ділянки" @click.stop="$emit('add-stop', segments.indexOf(seg), 'left', getBypassedInsertIdx(br, seg))">
-                    <rect :x="layout.leftX - 50" y="-14" width="32" height="28" fill="transparent" rx="14"/>
-                    <g :transform="'translate(' + (layout.leftX - 30.5) + ', -7) scale(-1, 1)'" fill="#4b5563">
-                      <path transform="scale(0.5)" d="M5.78869 27.4289C6.5345 27.4289 7.07691 26.9543 7.07691 26.0616V17.3943C7.07691 17.0101 7.25772 16.7841 7.56282 16.7841C7.86793 16.7841 8.06003 17.0101 8.06003 17.3943V26.0616C8.06003 26.9543 8.60244 27.4289 9.34826 27.4289ZM10.0828 27.4289 10.6252 26.9543 10.6252 26.0616V11.4165C10.6252 11.1114 10.7721 10.9306 11.0207 10.9306C11.258 10.9306 11.4162 11.1114 11.4162 11.4165V17.4282C11.4162 18.2305 11.8908 18.6825 12.5688 18.6825C13.2468 18.6825 13.7101 18.2305 13.7101 17.4282V11.5521C13.7101 7.9699 11.6874 7.04328 7.67583 7.04328H5.93559C5.15588 7.04328 4.76037 6.93027 4.13885 6.47827L2.64723 5.42735L2.37602 1.20106C2.31952 0.387446 1.79971 -0.0419624 1.1217 0.00323846C0.432382 0.0371391 -0.0422274 0.534349 0.00297345 1.33666L0.274179 5.52905C0.33068 6.44437 0.692287 6.97548 1.2573 7.39358L3.96935 9.37112C4.36486 9.65363 4.50046 10.0039 4.50046 10.4559V26.0616C4.50046 26.9543 5.05417 27.4289 5.78869 27.4289ZM7.67583 5.91325C9.17875 5.91325 10.3879 4.67023 10.3879 3.2125C10.3879 1.70957 9.17875 0.489148 7.67583 0.489148C6.16159 0.489148 4.97507 1.70957 4.97507 3.2125C4.97507 4.69283 6.16159 5.91325 7.67583 5.91325Z"/>
-                    </g>
-                  </g>
+              <!-- Add Stop sub-button -->
+              <g style="cursor:pointer;" title="Додати зупинку усередині цієї ділянки" @click.stop="$emit('add-stop', segments.indexOf(seg), 'left', getBypassedInsertIdx(br, seg))">
+                <rect :x="layout.leftX - 50" y="-14" width="32" height="28" fill="transparent" rx="14"/>
+                <g :transform="'translate(' + (layout.leftX - 30.5) + ', -7) scale(-1, 1)'" fill="#4b5563">
+                  <path transform="scale(0.5)" d="M5.78869 27.4289C6.5345 27.4289 7.07691 26.9543 7.07691 26.0616V17.3943C7.07691 17.0101 7.25772 16.7841 7.56282 16.7841C7.86793 16.7841 8.06003 17.0101 8.06003 17.3943V26.0616C8.06003 26.9543 8.60244 27.4289 9.34826 27.4289ZM10.0828 27.4289 10.6252 26.9543 10.6252 26.0616V11.4165C10.6252 11.1114 10.7721 10.9306 11.0207 10.9306C11.258 10.9306 11.4162 11.1114 11.4162 11.4165V17.4282C11.4162 18.2305 11.8908 18.6825 12.5688 18.6825C13.2468 18.6825 13.7101 18.2305 13.7101 17.4282V11.5521C13.7101 7.9699 11.6874 7.04328 7.67583 7.04328H5.93559C5.15588 7.04328 4.76037 6.93027 4.13885 6.47827L2.64723 5.42735L2.37602 1.20106C2.31952 0.387446 1.79971 -0.0419624 1.1217 0.00323846C0.432382 0.0371391 -0.0422274 0.534349 0.00297345 1.33666L0.274179 5.52905C0.33068 6.44437 0.692287 6.97548 1.2573 7.39358L3.96935 9.37112C4.36486 9.65363 4.50046 10.0039 4.50046 10.4559V26.0616C4.50046 26.9543 5.05417 27.4289 5.78869 27.4289ZM7.67583 5.91325C9.17875 5.91325 10.3879 4.67023 10.3879 3.2125C10.3879 1.70957 9.17875 0.489148 7.67583 0.489148C6.16159 0.489148 4.97507 1.70957 4.97507 3.2125C4.97507 4.69283 6.16159 5.91325 7.67583 5.91325Z"/>
                 </g>
               </g>
             </g>
@@ -1005,16 +991,15 @@ function getBypassedBranchesForSeg(seg) {
   const sIdx = segments.value.indexOf(seg);
   return (branches.value || []).filter(b => {
     if (!b || !b.finished || b.parentBranchId) return false;
-    if (!b.bypassedMainState && b.targetType !== 'current' && !b.targetStopId) return false;
+    if (b.targetType === 'node' || b.targetType === 'bottom_arc') return false;
     
-    const hasTargetStop = b.targetStopId && seg.stops && seg.stops.some(st => String(st.id) === String(b.targetStopId));
-    if (hasTargetStop) return true;
-    
-    if (sIdx === b.segIdx) return true;
+    if (sIdx === b.segIdx) {
+      return true;
+    }
 
     if (b.targetStopId) {
       const targetSegIdx = segments.value.findIndex(s => s.stops && s.stops.some(st => String(st.id) === String(b.targetStopId)));
-      if (targetSegIdx !== -1 && targetSegIdx > b.segIdx && sIdx > b.segIdx && sIdx < targetSegIdx) {
+      if (targetSegIdx !== -1 && targetSegIdx > b.segIdx && sIdx > b.segIdx && sIdx <= targetSegIdx) {
         return true;
       }
     }
@@ -1045,22 +1030,13 @@ function getBypassedTopPillStyle(br, i, isRight) {
     mergeIdx = seg.stops.findIndex(st => String(st.id) === String(br.targetStopId));
   }
 
-  let y;
-  if (mergeIdx !== -1) {
-    // Current segment contains the merge stop (e.g. seg_10 with Зупинка 3)
-    // Pre-merge pill sits right before the merge stop (under start node or after stops before merge stop)
-    y = isRight 
-      ? (startY + 32 + mergeIdx * 32) 
-      : (startY - 32 - mergeIdx * 32);
-  } else {
-    // Current segment does not contain the merge stop (origin or intermediate bypassed segment)
-    const hasBranchStart = (branches.value || []).some(b => b.segIdx === segments.value.indexOf(seg));
-    const topOffset = hasBranchStart ? 64 : 32;
-    const stopsCount = (seg && seg.stops) ? seg.stops.length : 0;
-    y = isRight 
-      ? (startY + topOffset + stopsCount * 32) 
-      : (startY - topOffset - stopsCount * 32);
-  }
+  const hasBranchStart = (branches.value || []).some(b => b.segIdx === segments.value.indexOf(seg));
+  const offset = hasBranchStart ? 64 : 32;
+  const preStopsCount = mergeIdx !== -1 ? mergeIdx : ((seg && seg.stops) ? seg.stops.length : 0);
+  
+  const y = isRight 
+    ? (startY + offset + preStopsCount * 32) 
+    : (startY - offset - preStopsCount * 32);
 
   return {
     transform: 'translate(' + x + 'px, ' + y + 'px)'
@@ -1106,8 +1082,16 @@ const segments = computed(() => props.routeData.segments || []);
 const branches = computed(() => props.routeData.branches || []);
 const localBranchMode = computed(() => props.isBranchMode || props.routeData.isBranchMode || false);
 
-const firstNode = computed(() => nodes.value.find(n => !n.side));
-const lastNode = computed(() => nodes.value.filter(n => !n.side)[1] || nodes.value.find(n => !n.side));
+const firstNode = computed(() => {
+  return nodes.value.find(n => !n.side || n.side === 'top') || nodes.value[0] || null;
+});
+const lastNode = computed(() => {
+  const candidates = nodes.value.filter(n => !n.side || n.side === 'bottom');
+  if (candidates.length > 1) {
+    return candidates[1];
+  }
+  return null;
+});
 const controlNodes = computed(() => nodes.value.filter(n => (n.side === 'left' || n.side === 'right') && n.type !== 'virtual'));
 
 const rightAddNodeY = computed(() => {
@@ -1130,21 +1114,11 @@ const nodeTravelTimes = computed(() => {
   
   // Find the exact first terminus in traversal order
   let firstTerminusId = null;
-  const top = props.routeData.nodes.find(n => !n.side);
-  if (top && top.isTerminus) firstTerminusId = top.id;
-  if (!firstTerminusId) {
-    const right = props.routeData.nodes.find(n => n.side === 'right' && n.isTerminus);
-    if (right) firstTerminusId = right.id;
-  }
-  if (!firstTerminusId) {
-    const bot = props.routeData.nodes.filter(n => !n.side)[1];
-    if (bot && bot.isTerminus) firstTerminusId = bot.id;
-  }
-  if (!firstTerminusId) {
-    const lefts = props.routeData.nodes.filter(n => n.side === 'left');
-    for (let i = lefts.length - 1; i >= 0; i--) {
-      if (lefts[i].isTerminus) { firstTerminusId = lefts[i].id; break; }
-    }
+  const termNode = props.routeData.nodes.find(n => n.isTerminus);
+  if (termNode) {
+    firstTerminusId = termNode.id;
+  } else if (firstNode.value) {
+    firstTerminusId = firstNode.value.id;
   }
   
   // Forward trip (right rail)
@@ -1210,8 +1184,8 @@ const nodeYMap = computed(() => {
   l.leftNodes?.forEach((n, i) => {
     if (n) map[n.id] = l.leftNodeY[i + 1] ?? 0;
   });
-  if (l.firstNode) map[l.firstNode.id] = l.topY - (l.CAP_R || 100);
-  if (l.lastNode) map[l.lastNode.id] = l.botY + (l.CAP_R || 100);
+  if (firstNode.value) map[firstNode.value.id] = l.topY - (l.CAP_R || 100);
+  if (lastNode.value) map[lastNode.value.id] = l.botY + (l.CAP_R || 100);
   return map;
 });
 
@@ -1465,25 +1439,25 @@ function getRightBranchFinishedPath(br, i) {
   contentOffset += nodesLen * 32;
 
   // Minimum Y before which the branch cannot turn (must be below all stops + add pill + turn clearance)
-  const branchContentBottom = startY + 48 + contentOffset;
-  const minTurnY = branchContentBottom + 32;
+  const minTurnY = getBranchEndpointY(br, i, true);
 
   let mergeY = minTurnY;
+  let isNodeTarget = false;
+  let targetNodeY = 0;
   if (br.targetStopId) {
      const rSegIdx = l.rightSegments.findIndex(s => s.stops && s.stops.some(st => String(st.id) === String(br.targetStopId)));
      if (rSegIdx !== -1) {
+        const targetSeg = l.rightSegments[rSegIdx];
+        const actualSegIdx = l.segments.indexOf(targetSeg);
+        const mergeIdx = targetSeg.stops.findIndex(st => String(st.id) === String(br.targetStopId));
+        const topY = l.rightNodeY[rSegIdx];
         const isSameSeg = (rSegIdx === (parentSeg ? l.rightSegments.indexOf(parentSeg) : i));
-        if (isSameSeg) {
-          mergeY = minTurnY;
-        } else {
-          const targetSeg = l.rightSegments[rSegIdx];
-          const actualSegIdx = l.segments.indexOf(targetSeg);
-          const mergeIdx = targetSeg.stops.findIndex(st => String(st.id) === String(br.targetStopId));
-          const topY = l.rightNodeY[rSegIdx];
-          const botY = l.rightNodeY[rSegIdx + 1];
-          const targetStopY = l.stopY(targetSeg, topY, botY, mergeIdx, rSegIdx === l.rightSegments.length - 1, actualSegIdx);
-          mergeY = Math.max(minTurnY, targetStopY - 32);
-        }
+        const hasBranchStart = (branches.value || []).some(b => b.segIdx === actualSegIdx);
+        const topOffset = hasBranchStart ? 64 : 32;
+        const preMergeMainH = topOffset + (mergeIdx + 1) * 32;
+        const brH = l.getBranchRequiredHeight(br);
+        const mergeOffset = isSameSeg ? Math.max(brH, preMergeMainH) : Math.max(startY + brH - topY, preMergeMainH);
+        mergeY = topY + mergeOffset;
      } else {
         mergeY = minTurnY;
      }
@@ -1491,7 +1465,9 @@ function getRightBranchFinishedPath(br, i) {
      const rightNodesArray = props.routeData.nodes.filter(n => n.side !== 'left');
      const nodeIdx = rightNodesArray.findIndex(n => String(n.id) === String(br.targetNodeId));
      if (nodeIdx !== -1 && l.rightNodeY[nodeIdx] !== undefined) {
-        mergeY = l.rightNodeY[nodeIdx];
+        targetNodeY = l.rightNodeY[nodeIdx];
+        mergeY = targetNodeY - 64;
+        isNodeTarget = true;
      }
   } else if (br.targetType === 'bottom_arc') {
      mergeY = l.botY;
@@ -1511,13 +1487,12 @@ function getRightBranchFinishedPath(br, i) {
      + 'L ' + (l.rightX + absDx - r) + ' ' + (startY + 32) + ' '
      + 'A ' + r + ' ' + r + ' 0 0 1 ' + (l.rightX + absDx) + ' ' + (startY + 48) + ' '
      + 'L ' + (l.rightX + absDx) + ' ' + (mergeY - r) + ' '
-     + 'A ' + r + ' ' + r + ' 0 0 1 ' + (l.rightX + absDx - r) + ' ' + mergeY + ' ';
+     + 'A ' + r + ' ' + r + ' 0 0 1 ' + (l.rightX + absDx - r) + ' ' + mergeY + ' '
+     + 'L ' + (l.rightX + r) + ' ' + mergeY + ' '
+     + 'A ' + r + ' ' + r + ' 0 0 0 ' + l.rightX + ' ' + (mergeY + r);
      
-  if (isType2) {
-    dPath += 'L ' + (l.rightX + 9) + ' ' + mergeY;
-  } else {
-    dPath += 'L ' + (l.rightX + r) + ' ' + mergeY + ' '
-          + 'A ' + r + ' ' + r + ' 0 0 0 ' + l.rightX + ' ' + (mergeY + r);
+  if (isNodeTarget && targetNodeY > (mergeY + r)) {
+    dPath += ' L ' + l.rightX + ' ' + (targetNodeY - 9);
   }
   
   return {
@@ -1535,46 +1510,37 @@ function getLeftBranchFinishedPath(br, i) {
   const lSegIdx = parentSeg ? l.leftSegments.findIndex(s => String(s.id) === String(parentSeg.id)) : (br.segIdx ?? i);
   const startY = (lSegIdx !== -1 && l.leftNodeY[lSegIdx + 1] !== undefined) ? l.leftNodeY[lSegIdx + 1] : (l.leftNodeY[i + 1] ?? 0);
   
-  const isType2 = br.targetType && br.targetType !== 'current';
   const dx = getBranchDx(br);
   
-  let contentOffset = 0;
-  const sections = br.sections || [];
-  const nodesLen = getBranchNodesLength(br);
-  for (let si = 0; si <= nodesLen; si++) {
-    const stopsCount = (sections[si]?.stops || []).length;
-    contentOffset += (stopsCount * 32);
-    if (props.editable !== false) contentOffset += 32;
-  }
-  contentOffset += nodesLen * 32;
-
-  const branchContentTop = startY - 48 - contentOffset;
-  const minTurnY = branchContentTop - 32;
+  const minTurnY = getBranchEndpointY(br, i, false);
 
   let mergeY = minTurnY;
+  let isNodeTarget = false;
+  let targetNodeY = 0;
   if (br.targetStopId) {
-     const lSegIdx = l.leftSegments.findIndex(s => s.stops && s.stops.some(st => String(st.id) === String(br.targetStopId)));
-     if (lSegIdx !== -1) {
-        const isSameSeg = (lSegIdx === (parentSeg ? l.leftSegments.indexOf(parentSeg) : i));
-        if (isSameSeg) {
-          mergeY = minTurnY;
-        } else {
-          const targetSeg = l.leftSegments[lSegIdx];
-          const actualSegIdx = l.segments.indexOf(targetSeg);
-          const mergeIdx = targetSeg.stops.findIndex(st => String(st.id) === String(br.targetStopId));
-          const topY = l.leftNodeY[lSegIdx];
-          const botY = l.leftNodeY[lSegIdx + 1];
-          const targetStopY = l.stopY(targetSeg, topY, botY, mergeIdx, lSegIdx === l.leftSegments.length - 1, actualSegIdx);
-          mergeY = Math.min(minTurnY, targetStopY + 32);
-        }
-     } else {
-        mergeY = minTurnY;
-     }
+    const lSegIdx = l.leftSegments.findIndex(s => s.stops && s.stops.some(st => String(st.id) === String(br.targetStopId)));
+    if (lSegIdx !== -1) {
+      const targetSeg = l.leftSegments[lSegIdx];
+      const actualSegIdx = l.segments.indexOf(targetSeg);
+      const mergeIdx = targetSeg.stops.findIndex(st => String(st.id) === String(br.targetStopId));
+      const botY = l.leftNodeY[lSegIdx + 1];
+      const isSameSeg = (lSegIdx === (parentSeg ? l.leftSegments.indexOf(parentSeg) : i));
+      const hasBranchStart = (branches.value || []).some(b => b.segIdx === actualSegIdx);
+      const bottomOffset = hasBranchStart ? 64 : 32;
+      const preMergeMainH = bottomOffset + (mergeIdx + 1) * 32;
+      const brH = l.getBranchRequiredHeight(br);
+      const mergeOffset = isSameSeg ? Math.max(brH, preMergeMainH) : Math.max(botY - (startY - brH), preMergeMainH);
+      mergeY = botY - mergeOffset;
+    } else {
+      mergeY = minTurnY;
+    }
   } else if (br.targetType === 'node' && br.targetNodeId) {
      const leftNodesArray = props.routeData.nodes.filter(n => n.side !== 'right');
      const nodeIdx = leftNodesArray.findIndex(n => String(n.id) === String(br.targetNodeId));
      if (nodeIdx !== -1 && l.leftNodeY[nodeIdx + 1] !== undefined) {
-        mergeY = l.leftNodeY[nodeIdx + 1];
+        targetNodeY = l.leftNodeY[nodeIdx + 1];
+        mergeY = targetNodeY + 64;
+        isNodeTarget = true;
      }
   } else if (br.targetType === 'bottom_arc') {
      mergeY = l.topY;
@@ -1594,13 +1560,12 @@ function getLeftBranchFinishedPath(br, i) {
      + 'L ' + (l.leftX - absDx + r) + ' ' + (startY - 32) + ' '
      + 'A ' + r + ' ' + r + ' 0 0 1 ' + (l.leftX - absDx) + ' ' + (startY - 48) + ' '
      + 'L ' + (l.leftX - absDx) + ' ' + (mergeY + r) + ' '
-     + 'A ' + r + ' ' + r + ' 0 0 1 ' + (l.leftX - absDx + r) + ' ' + mergeY + ' ';
+     + 'A ' + r + ' ' + r + ' 0 0 1 ' + (l.leftX - absDx + r) + ' ' + mergeY + ' '
+     + 'L ' + (l.leftX - r) + ' ' + mergeY + ' '
+     + 'A ' + r + ' ' + r + ' 0 0 0 ' + l.leftX + ' ' + (mergeY - r);
 
-  if (isType2) {
-    dPath += 'L ' + (l.leftX - 9) + ' ' + mergeY;
-  } else {
-    dPath += 'L ' + (l.leftX - r) + ' ' + mergeY + ' '
-          + 'A ' + r + ' ' + r + ' 0 0 0 ' + l.leftX + ' ' + (mergeY - r);
+  if (isNodeTarget && targetNodeY < (mergeY - r)) {
+    dPath += ' L ' + l.leftX + ' ' + (targetNodeY + 9);
   }
   
   return {
