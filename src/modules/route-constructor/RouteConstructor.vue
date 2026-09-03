@@ -438,7 +438,7 @@ function confirmFinishBranch() {
     finished: true
   };
   if (config.targetType === 'current') {
-    config.bypassedMainState = 'question';
+    config.bypassedMainState = 'add_pills';
     const parentSegId = routeGraph.value.nodes[startNodeId]?.nextSegId;
     const parentSeg = parentSegId ? routeGraph.value.segments[parentSegId] : null;
     config.targetStopId = parentSeg ? parentSeg.firstStopId : null;

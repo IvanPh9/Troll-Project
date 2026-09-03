@@ -276,26 +276,12 @@
 
 
 
-          <!-- Question Circle / Bypassed Pill for Main Rail Segment (Right Rail) -->
+          <!-- Clean Bypassed Add Pill inside the loop on the main rail (x = 18) -->
           <template v-for="br in getBypassedBranchesForSeg(seg)" :key="'rbr-q-' + br.id">
-            <g v-if="br.finished && (br.targetType === 'current' || !br.targetType || br.targetStopId || br.bypassedMainState === 'add_pills') && (editable && !localBranchMode)"
+            <g v-if="br.finished && (editable && !localBranchMode)"
                class="anim-row"
-               :style="br.bypassedMainState === 'add_pills' ? getBypassedTopPillStyle(br, i, true) : getBypassedQuestionStyle(br, i, true)"
-               style="cursor: pointer;"
-               @click.stop="$emit('config-branch', br)">
-              
-              <g v-if="!br.bypassedMainState || br.bypassedMainState === 'question'">
-                <circle cx="0" cy="0" r="14" fill="#ffffff" />
-                <SvgIcon name="question-circle" :x="-14" :y="-14" :width="28" :height="28" class="text-blue-600 fill-current shadow-md transition-transform hover:scale-110" />
-                <text x="-22" y="4"
-                      font-size="11" font-weight="700" fill="#1D43EF" font-style="italic" text-anchor="end"
-                      style="pointer-events:none;">Що робити з ділянкою?</text>
-              </g>
-              <g v-else-if="br.bypassedMainState === 'empty'">
-                <circle cx="0" cy="0" r="10" fill="#ffffff" />
-                <SvgIcon name="question-circle" :x="-10" :y="-10" :width="20" :height="20" class="text-gray-400 fill-current shadow-sm transition-transform hover:scale-110" />
-              </g>
-              <g v-else-if="br.bypassedMainState === 'add_pills'">
+               :style="getBypassedTopPillStyle(br, i, true)">
+              <g>
                 <!-- Clean Bypassed Add Pill inside the loop on the main rail (x = 18) -->
                 <g class="anim-row" style="pointer-events: auto;">
                   <rect :x="layout.rightX + 18" y="-14" :width="activeExpandedPill === ('bypassed-' + br.id + '-' + seg.id) ? 78 : 64" height="28" rx="14"
@@ -986,6 +972,20 @@ function getBypassedInsertIdx(br, seg) {
   return seg.stops.length;
 }
 
+function getBranchTargetSegIdx(b, allSegments) {
+  const segs = allSegments || segments.value;
+  if (!b || !segs) return b?.segIdx ?? 0;
+  if (b.targetStopId) {
+    const sIdx = segs.findIndex(s => s.stops && s.stops.some(st => String(st.id) === String(b.targetStopId)));
+    if (sIdx !== -1) return sIdx;
+  }
+  if (b.targetNodeId && b.targetType !== 'node' && b.targetType !== 'bottom_arc') {
+    const sIdx = segs.findIndex(s => String(s.nextNodeId) === String(b.targetNodeId));
+    if (sIdx !== -1) return sIdx;
+  }
+  return b.segIdx ?? 0;
+}
+
 function getBypassedBranchesForSeg(seg) {
   if (!seg) return [];
   const sIdx = segments.value.indexOf(seg);
@@ -993,17 +993,10 @@ function getBypassedBranchesForSeg(seg) {
     if (!b || !b.finished || b.parentBranchId) return false;
     if (b.targetType === 'node' || b.targetType === 'bottom_arc') return false;
     
-    if (sIdx === b.segIdx) {
-      return true;
-    }
-
-    if (b.targetStopId) {
-      const targetSegIdx = segments.value.findIndex(s => s.stops && s.stops.some(st => String(st.id) === String(b.targetStopId)));
-      if (targetSegIdx !== -1 && targetSegIdx > b.segIdx && sIdx > b.segIdx && sIdx <= targetSegIdx) {
-        return true;
-      }
-    }
-    return false;
+    const startSegIdx = b.segIdx ?? 0;
+    const targetSegIdx = getBranchTargetSegIdx(b, segments.value);
+    
+    return (sIdx >= startSegIdx && sIdx <= targetSegIdx);
   });
 }
 
@@ -1032,8 +1025,7 @@ function getBypassedTopPillStyle(br, i, isRight) {
 
   const hasBranchStart = (branches.value || []).some(b => b.segIdx === segments.value.indexOf(seg));
   const offset = hasBranchStart ? 64 : 32;
-  const preStopsCount = mergeIdx !== -1 ? mergeIdx : ((seg && seg.stops) ? seg.stops.length : 0);
-  
+  const preStopsCount = mergeIdx !== -1 ? mergeIdx : (seg && seg.stops ? seg.stops.length : 0);
   const y = isRight 
     ? (startY + offset + preStopsCount * 32) 
     : (startY - offset - preStopsCount * 32);
@@ -1048,11 +1040,20 @@ function shouldShowMainAddPill(side, segIndex) {
   if (!segs || !segs[segIndex]) return true;
   
   const seg = segs[segIndex];
+  const actualIdx = segments.value.indexOf(seg);
   const brs = getBypassedBranchesForSeg(seg);
   const bypassBr = brs.find(b => b && b.finished && b.bypassedMainState === 'add_pills');
   if (bypassBr) {
-    const isFullyBypassed = !seg.stops || !seg.stops.some(st => String(st.id) === String(bypassBr.targetStopId));
-    if (isFullyBypassed) return false;
+    const targetSegIdx = getBranchTargetSegIdx(bypassBr, segments.value);
+    if (actualIdx < targetSegIdx) {
+      return false;
+    }
+    if (actualIdx === targetSegIdx) {
+      if (!bypassBr.targetStopId) return false;
+      const mergeIdx = seg.stops ? seg.stops.findIndex(st => String(st.id) === String(bypassBr.targetStopId)) : -1;
+      const postMergeStops = mergeIdx !== -1 ? (seg.stops.length - 1 - mergeIdx) : 0;
+      if (postMergeStops === 0) return false;
+    }
   }
   return true;
 }
@@ -1416,7 +1417,25 @@ function getBranchEndpointY(br, i, isRight) {
 }
 
 function getBranchDx(br) {
-  return (br.mergeConfigured === 'add_inside' || (br.finished && br.targetType && br.targetType !== 'current')) ? 192 : 96;
+  if (!br || !br.finished) return 96;
+  if (br.targetType && br.targetType !== 'current') return 192;
+  
+  const sIdx = br.segIdx ?? 0;
+  const allSegs = props.routeData?.segments || [];
+  const targetSegIdx = getBranchTargetSegIdx(br, allSegs);
+  
+  let totalStopsInside = 0;
+  for (let k = sIdx; k <= targetSegIdx; k++) {
+    const seg = allSegs[k];
+    if (!seg || !seg.stops) continue;
+    if (k === targetSegIdx && br.targetStopId) {
+      const mIdx = seg.stops.findIndex(st => String(st.id) === String(br.targetStopId));
+      totalStopsInside += (mIdx !== -1 ? mIdx : seg.stops.length);
+    } else {
+      totalStopsInside += seg.stops.length;
+    }
+  }
+  return totalStopsInside > 0 ? 192 : 96;
 }
 
 function getRightBranchFinishedPath(br, i) {
@@ -1425,18 +1444,7 @@ function getRightBranchFinishedPath(br, i) {
   const parentSeg = br.segIdx !== undefined ? props.routeData.segments[br.segIdx] : null;
   const rSegIdx = parentSeg ? l.rightSegments.findIndex(s => String(s.id) === String(parentSeg.id)) : (br.segIdx ?? i);
   const startY = (rSegIdx !== -1 && l.rightNodeY[rSegIdx] !== undefined) ? l.rightNodeY[rSegIdx] : (l.rightNodeY[i] ?? 0);
-  const isType2 = br.targetType && br.targetType !== 'current';
   const dx = getBranchDx(br);
-  
-  let contentOffset = 0;
-  const sections = br.sections || [];
-  const nodesLen = getBranchNodesLength(br);
-  for (let si = 0; si <= nodesLen; si++) {
-    const stopsCount = (sections[si]?.stops || []).length;
-    contentOffset += (stopsCount * 32);
-    if (props.editable !== false) contentOffset += 32;
-  }
-  contentOffset += nodesLen * 32;
 
   // Minimum Y before which the branch cannot turn (must be below all stops + add pill + turn clearance)
   const minTurnY = getBranchEndpointY(br, i, true);
@@ -1445,13 +1453,13 @@ function getRightBranchFinishedPath(br, i) {
   let isNodeTarget = false;
   let targetNodeY = 0;
   if (br.targetStopId) {
-     const rSegIdx = l.rightSegments.findIndex(s => s.stops && s.stops.some(st => String(st.id) === String(br.targetStopId)));
-     if (rSegIdx !== -1) {
-        const targetSeg = l.rightSegments[rSegIdx];
+     const targetRIdx = l.rightSegments.findIndex(s => s.stops && s.stops.some(st => String(st.id) === String(br.targetStopId)));
+     if (targetRIdx !== -1) {
+        const targetSeg = l.rightSegments[targetRIdx];
         const actualSegIdx = l.segments.indexOf(targetSeg);
         const mergeIdx = targetSeg.stops.findIndex(st => String(st.id) === String(br.targetStopId));
-        const topY = l.rightNodeY[rSegIdx];
-        const isSameSeg = (rSegIdx === (parentSeg ? l.rightSegments.indexOf(parentSeg) : i));
+        const topY = l.rightNodeY[targetRIdx];
+        const isSameSeg = (targetRIdx === rSegIdx);
         const hasBranchStart = (branches.value || []).some(b => b.segIdx === actualSegIdx);
         const topOffset = hasBranchStart ? 64 : 32;
         const preMergeMainH = topOffset + (mergeIdx + 1) * 32;
@@ -1471,8 +1479,21 @@ function getRightBranchFinishedPath(br, i) {
      }
   } else if (br.targetType === 'bottom_arc') {
      mergeY = l.botY;
-  } else if (!br.targetType || br.targetType === 'current') {
-     mergeY = minTurnY;
+  } else {
+     const targetSegIdx = getBranchTargetSegIdx(br, l.segments);
+     const targetSeg = l.segments[targetSegIdx];
+     const targetRIdx = targetSeg ? l.rightSegments.findIndex(s => String(s.id) === String(targetSeg.id)) : rSegIdx;
+     if (targetRIdx !== -1 && targetRIdx !== rSegIdx && l.rightNodeY[targetRIdx] !== undefined) {
+        const topY = l.rightNodeY[targetRIdx];
+        const hasBranchStart = (branches.value || []).some(b => b.segIdx === targetSegIdx);
+        const topOffset = hasBranchStart ? 64 : 32;
+        const preMergeMainH = topOffset + (targetSeg.stops ? targetSeg.stops.length * 32 : 0);
+        const brH = l.getBranchRequiredHeight(br);
+        const mergeOffset = Math.max(startY + brH - topY, preMergeMainH);
+        mergeY = topY + mergeOffset;
+     } else {
+        mergeY = minTurnY;
+     }
   }
 
   // Ensure mergeY is never above the branch content and turn clearance
@@ -1518,13 +1539,13 @@ function getLeftBranchFinishedPath(br, i) {
   let isNodeTarget = false;
   let targetNodeY = 0;
   if (br.targetStopId) {
-    const lSegIdx = l.leftSegments.findIndex(s => s.stops && s.stops.some(st => String(st.id) === String(br.targetStopId)));
-    if (lSegIdx !== -1) {
-      const targetSeg = l.leftSegments[lSegIdx];
+    const targetLIdx = l.leftSegments.findIndex(s => s.stops && s.stops.some(st => String(st.id) === String(br.targetStopId)));
+    if (targetLIdx !== -1) {
+      const targetSeg = l.leftSegments[targetLIdx];
       const actualSegIdx = l.segments.indexOf(targetSeg);
       const mergeIdx = targetSeg.stops.findIndex(st => String(st.id) === String(br.targetStopId));
-      const botY = l.leftNodeY[lSegIdx + 1];
-      const isSameSeg = (lSegIdx === (parentSeg ? l.leftSegments.indexOf(parentSeg) : i));
+      const botY = l.leftNodeY[targetLIdx + 1];
+      const isSameSeg = (targetLIdx === lSegIdx);
       const hasBranchStart = (branches.value || []).some(b => b.segIdx === actualSegIdx);
       const bottomOffset = hasBranchStart ? 64 : 32;
       const preMergeMainH = bottomOffset + (mergeIdx + 1) * 32;
@@ -1544,8 +1565,21 @@ function getLeftBranchFinishedPath(br, i) {
      }
   } else if (br.targetType === 'bottom_arc') {
      mergeY = l.topY;
-  } else if (!br.targetType || br.targetType === 'current') {
-     mergeY = minTurnY;
+  } else {
+     const targetSegIdx = getBranchTargetSegIdx(br, l.segments);
+     const targetSeg = l.segments[targetSegIdx];
+     const targetLIdx = targetSeg ? l.leftSegments.findIndex(s => String(s.id) === String(targetSeg.id)) : lSegIdx;
+     if (targetLIdx !== -1 && targetLIdx !== lSegIdx && l.leftNodeY[targetLIdx + 1] !== undefined) {
+        const botY = l.leftNodeY[targetLIdx + 1];
+        const hasBranchStart = (branches.value || []).some(b => b.segIdx === targetSegIdx);
+        const bottomOffset = hasBranchStart ? 64 : 32;
+        const preMergeMainH = bottomOffset + (targetSeg.stops ? targetSeg.stops.length * 32 : 0);
+        const brH = l.getBranchRequiredHeight(br);
+        const mergeOffset = Math.max(botY - (startY - brH), preMergeMainH);
+        mergeY = botY - mergeOffset;
+     } else {
+        mergeY = minTurnY;
+     }
   }
 
   // Ensure mergeY is never below (screen Y above) branch content and turn clearance

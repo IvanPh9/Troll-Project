@@ -321,11 +321,11 @@ export function addControlNodeGraph(graph, targetSegId, posMode = 'before', side
     oldSeg.travelTime = Math.max(1, oldSeg.travelTime - half);
     oldSeg.nextNodeId = newNodeId;
   } else if (posMode === 'bypassed_split') {
-    // We need to find the branch that merges here to get targetStopId
+    // Find the branch that bypasses this segment
     const brNodeId = Object.keys(graph.nodes).find(nId => {
        const n = graph.nodes[nId];
-       return n.altSegId && n.branchConfig?.bypassedMainState === 'add_pills' && n.branchConfig?.targetStopId &&
-         (graph.segments[n.nextSegId]?.id === targetSegId || (graph.segments[targetSegId] && checkStopInSeg(graph, targetSegId, n.branchConfig.targetStopId)));
+       return n.altSegId && (n.branchConfig?.bypassedMainState === 'add_pills' || n.branchConfig?.finished) &&
+         (graph.segments[n.nextSegId]?.id === targetSegId || (graph.segments[targetSegId] && checkStopInSeg(graph, targetSegId, n.branchConfig?.targetStopId)));
     });
     
     let targetStopId = null;
@@ -377,8 +377,9 @@ export function addControlNodeGraph(graph, targetSegId, posMode = 'before', side
     oldSeg.travelTime = Math.max(1, oldSeg.travelTime - half);
     oldSeg.nextNodeId = newNodeId;
 
-    // Do NOT change the branch targetType! It remains 'current', merging at the gap!
-    // The targetStopId will now point to newSeg's firstStopId, which signals fullyBypassed.
+    if (brNode && brNode.branchConfig) {
+      brNode.branchConfig.targetNodeId = newSeg.nextNodeId;
+    }
   } else {
     // SECOND ARROW (posMode === 'after'):
     // Add a new control node after the end control point of this segment,
@@ -560,7 +561,7 @@ export function addBranchGraph(graph, parentSegId) {
     targetType: 'current',
     targetNodeId: parentSeg.nextNodeId,
     targetStopId: parentSeg.firstStopId || null,
-    bypassedMainState: 'question'
+    bypassedMainState: 'add_pills'
   };
   startNode.altSegId = brSegId;
   return brSegId;
