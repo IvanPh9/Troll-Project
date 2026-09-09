@@ -402,7 +402,7 @@
                     @click.stop="selectBranchSection(br, secIdx - 1, i, true)" />
 
               <g v-for="(bStop, bStIdx) in getBranchSectionStops(br, secIdx)" :key="'rbrst-' + bStop.id" style="cursor:pointer;"
-                 @click.stop="$emit('edit-branch-stop', br.id, secIdx - 1, bStIdx)">
+                 @click.stop="selectBranchSection(br, secIdx - 1, i, true)">
                 <line :x1="layout.rightX + getBranchDx(br)"
                       :y1="getBranchStopY(br, secIdx, bStIdx, i, true)"
                       :x2="layout.rightX + getBranchDx(br) + 12"
@@ -629,7 +629,7 @@
                     title="Налаштувати ділянку альтернативи"
                     @click.stop="selectBranchSection(br, secIdx - 1, i, false)" />
               <g v-for="(bStop, bStIdx) in getBranchSectionStops(br, secIdx)" :key="'lbrst-' + bStop.id" style="cursor:pointer;"
-                 @click.stop="$emit('edit-branch-stop', br.id, secIdx - 1, bStIdx)">
+                 @click.stop="selectBranchSection(br, secIdx - 1, i, false)">
                 <line :x1="layout.leftX - getBranchDx(br)"
                       :y1="getBranchStopY(br, secIdx, bStIdx, i, false)"
                       :x2="layout.leftX - getBranchDx(br) - 12"
@@ -1381,7 +1381,6 @@ function getBranchEndpointY(br, i, isRight) {
 
 function getBranchDx(br) {
   if (!br) return 96;
-  if (br.targetType && br.targetType !== 'current') return 192;
   
   const sIdx = br.segIdx ?? 0;
   const allSegs = props.routeData?.segments || [];
@@ -1404,8 +1403,8 @@ function getBranchDx(br) {
       totalStopsInside += seg.stops.length;
     }
   }
-  const hasBranchStops = (br.sections || []).some(s => s?.stops && s.stops.length > 0);
-  return (totalStopsInside > 0 || hasBranchStops) ? 192 : 96;
+
+  return totalStopsInside > 0 ? 192 : 96;
 }
 
 function getRightBranchFinishedPath(br, i) {

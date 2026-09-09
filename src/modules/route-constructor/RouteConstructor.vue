@@ -327,12 +327,46 @@ const activeSegmentNodes = computed(() => {
   return [];
 });
 
+function getBranchTargetSegIdx(b) {
+  const segs = segments.value;
+  if (!b || !segs) return b?.segIdx ?? 0;
+  if (b.targetStopId) {
+    const sIdx = segs.findIndex(s => s.stops && s.stops.some(st => String(st.id) === String(b.targetStopId)));
+    if (sIdx !== -1) return sIdx;
+  }
+  if (b.targetNodeId && b.targetType !== 'node' && b.targetType !== 'bottom_arc') {
+    const sIdx = segs.findIndex(s => String(s.nextNodeId) === String(b.targetNodeId));
+    if (sIdx !== -1) return sIdx;
+  }
+  return b.segIdx ?? 0;
+}
+
 function addStop(sIdx, side, insertIdx = -1) {
   const seg = segments.value[sIdx];
   if (!seg) return;
   takeSnapshot('Додавання зупинки', { sIdx, side, insertIdx });
   const newStopId = addStopGraph(routeGraph.value, seg.id, side, insertIdx);
-  // Stop added without hijacking branch targetStopId
+
+  // If adding at the end of the segment via the main bottom pill (insertIdx === -1),
+  // and there is a finished branch reconnecting into this segment that doesn't have a valid targetStopId yet,
+  // this new stop is the first stop after the reconnection, so bind the branch targetStopId to it.
+  if (insertIdx === -1 && newStopId) {
+    const mergingBranch = branches.value.find(b => {
+      if (!b.finished || b.targetType === 'node' || b.targetType === 'bottom_arc') return false;
+      const targetSegIdx = getBranchTargetSegIdx(b);
+      const isThisSeg = (targetSegIdx === sIdx);
+      const hasValidTargetStop = b.targetStopId && seg.stops && seg.stops.some(st => String(st.id) === String(b.targetStopId));
+      return isThisSeg && !hasValidTargetStop;
+    });
+
+    if (mergingBranch) {
+      const startNodeId = mergingBranch.id.replace('br_', '');
+      setBranchConfigGraph(routeGraph.value, startNodeId, {
+        targetType: 'stop',
+        targetStopId: newStopId
+      });
+    }
+  }
 }
 
 function removeStop(sIdx, stIdx) {
@@ -523,20 +557,7 @@ function addBranchStop(brId, sectionIdx = 0) {
 }
 
 function editBranchStop(brId, sectionIdx, stopIdx) {
-  const br = branches.value.find(b => b.id === brId);
-  if (br && br.sections[sectionIdx] && br.sections[sectionIdx].stops[stopIdx]) {
-    const currentStop = br.sections[sectionIdx].stops[stopIdx];
-    const newName = prompt('Назва зупинки на альтернативі (залиште порожнім для видалення):', currentStop.name);
-    if (newName !== null) {
-      takeSnapshot('Редагування зупинки на розгалуженні', { brId, newName });
-      if (newName.trim() === '') {
-        removeStopGraph(routeGraph.value, br.sections[sectionIdx].id, currentStop.id);
-      } else {
-        const graphStop = routeGraph.value.stops[currentStop.id];
-        if (graphStop) graphStop.name = newName.trim();
-      }
-    }
-  }
+  // Native prompt removed: stop/section editing is handled in the sidebar
 }
 
 function editBranchNode(brId, bNIdx) {
