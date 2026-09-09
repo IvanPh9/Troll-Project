@@ -157,15 +157,14 @@ export class OvalLayout {
         mergeIdx = seg.stops.findIndex(st => String(st.id) === String(activeBr.targetStopId));
       }
       if (mergeIdx === -1) {
-        mergeIdx = 0;
+        mergeIdx = (!activeBr.targetStopId && seg.stops) ? seg.stops.length : 0;
       }
       const brH = this.getBranchRequiredHeight(activeBr);
-      const hasStopsBeforeMerge = (mergeIdx > 0 || (mergeIdx === -1 && stopsCount > 0));
-      const preMergeMainH = topOffset + (mergeIdx !== -1 ? (mergeIdx + 1) * 32 : (stopsCount * 32));
+      const preMergeMainH = topOffset + (mergeIdx > 0 ? mergeIdx * 32 : 0) + 32;
       const mergeOffset = isSameSeg ? Math.max(brH, preMergeMainH) : preMergeMainH;
-      const postMergeStops = mergeIdx !== -1 ? (stopsCount - mergeIdx) : 0;
-      const extraBuffer = hasStopsBeforeMerge ? 64 : 32;
-      return mergeOffset + postMergeStops * 32 + extraBuffer;
+      const postMergeStops = Math.max(0, stopsCount - mergeIdx);
+      const extraBuffer = this.editable !== false ? 64 : 32;
+      return mergeOffset + 32 + postMergeStops * 32 + extraBuffer;
     }
 
     // If a branch terminates in the end node of this segment:
@@ -206,18 +205,19 @@ export class OvalLayout {
             if (b.targetStopId && targetSeg.stops) {
               mergeIdx = targetSeg.stops.findIndex(st => String(st.id) === String(b.targetStopId));
             }
-            if (mergeIdx === -1) mergeIdx = 0;
+            if (mergeIdx === -1) {
+              mergeIdx = (!b.targetStopId && targetSeg.stops) ? targetSeg.stops.length : 0;
+            }
             const isSameSeg = (targetSegIdx === sIdx);
             const hasBranchStart = this.branches && this.branches.some(br => br.segIdx === this.segments.findIndex(s => s.id === targetSeg.id));
             const topOffset = (this.isBranchMode || hasBranchStart) ? 64 : 32;
-            const preMergeMainH = topOffset + (mergeIdx + 1) * 32;
-            const postMergeStops = (targetSeg.stops ? targetSeg.stops.length : 0) - mergeIdx;
-            const hasStopsBeforeMerge = (mergeIdx > 0 || (mergeIdx === -1 && targetSeg.stops && targetSeg.stops.length > 0));
-            const extraBuffer = hasStopsBeforeMerge ? 64 : 32;
+            const preMergeMainH = topOffset + (mergeIdx > 0 ? mergeIdx * 32 : 0) + 32;
+            const postMergeStops = Math.max(0, (targetSeg.stops ? targetSeg.stops.length : 0) - mergeIdx);
+            const extraBuffer = this.editable !== false ? 64 : 32;
 
             if (isSameSeg) {
               const mergeOffset = Math.max(brH, preMergeMainH);
-              const minSegH = mergeOffset + postMergeStops * 32 + extraBuffer;
+              const minSegH = mergeOffset + 32 + postMergeStops * 32 + extraBuffer;
               if (ys[sIdx + 1] - ys[sIdx] < minSegH) {
                 const diff = minSegH - (ys[sIdx + 1] - ys[sIdx]);
                 for (let k = sIdx + 1; k < ys.length; k++) ys[k] += diff;
@@ -225,7 +225,7 @@ export class OvalLayout {
               }
             } else if (targetSegIdx > sIdx) {
               const mergeOffset = Math.max(startY + brH - ys[targetSegIdx], preMergeMainH);
-              const minSegH = mergeOffset + postMergeStops * 32 + extraBuffer;
+              const minSegH = mergeOffset + 32 + postMergeStops * 32 + extraBuffer;
               if (ys[targetSegIdx + 1] - ys[targetSegIdx] < minSegH) {
                 const diff = minSegH - (ys[targetSegIdx + 1] - ys[targetSegIdx]);
                 for (let k = targetSegIdx + 1; k < ys.length; k++) ys[k] += diff;
@@ -302,18 +302,19 @@ export class OvalLayout {
             if (b.targetStopId && targetSeg.stops) {
               mergeIdx = targetSeg.stops.findIndex(st => String(st.id) === String(b.targetStopId));
             }
-            if (mergeIdx === -1) mergeIdx = 0;
+            if (mergeIdx === -1) {
+              mergeIdx = (!b.targetStopId && targetSeg.stops) ? targetSeg.stops.length : 0;
+            }
             const isSameSeg = (targetSegIdx === sIdx);
             const hasBranchStart = this.branches && this.branches.some(br => br.segIdx === this.segments.findIndex(s => s.id === targetSeg.id));
             const bottomOffset = (this.isBranchMode || hasBranchStart) ? 64 : 32;
-            const preMergeMainH = bottomOffset + (mergeIdx + 1) * 32;
-            const postMergeStops = (targetSeg.stops ? targetSeg.stops.length : 0) - mergeIdx;
-            const hasStopsBeforeMerge = (mergeIdx > 0 || (mergeIdx === -1 && targetSeg.stops && targetSeg.stops.length > 0));
-            const extraBuffer = hasStopsBeforeMerge ? 64 : 32;
+            const preMergeMainH = bottomOffset + (mergeIdx > 0 ? mergeIdx * 32 : 0) + 32;
+            const postMergeStops = Math.max(0, (targetSeg.stops ? targetSeg.stops.length : 0) - mergeIdx);
+            const extraBuffer = this.editable !== false ? 64 : 32;
 
             if (isSameSeg) {
               const mergeOffset = Math.max(brH, preMergeMainH);
-              const minSegH = mergeOffset + postMergeStops * 32 + extraBuffer;
+              const minSegH = mergeOffset + 32 + postMergeStops * 32 + extraBuffer;
               if (ys[sIdx + 1] - ys[sIdx] < minSegH) {
                 const diff = minSegH - (ys[sIdx + 1] - ys[sIdx]);
                 for (let k = 0; k <= sIdx; k++) ys[k] -= diff;
@@ -321,7 +322,7 @@ export class OvalLayout {
               }
             } else if (targetSegIdx < sIdx) {
               const mergeOffset = Math.max(ys[targetSegIdx + 1] - (startY - brH), preMergeMainH);
-              const minSegH = mergeOffset + postMergeStops * 32 + extraBuffer;
+              const minSegH = mergeOffset + 32 + postMergeStops * 32 + extraBuffer;
               if (ys[targetSegIdx + 1] - ys[targetSegIdx] < minSegH) {
                 const diff = minSegH - (ys[targetSegIdx + 1] - ys[targetSegIdx]);
                 for (let k = 0; k <= targetSegIdx; k++) ys[k] -= diff;
@@ -400,11 +401,11 @@ export class OvalLayout {
         mergeIdx = seg.stops.findIndex(st => String(st.id) === String(activeBr.targetStopId));
       }
       if (mergeIdx === -1) {
-        mergeIdx = 0;
+        mergeIdx = (!activeBr.targetStopId && seg.stops) ? seg.stops.length : 0;
       }
       const brH = this.getBranchRequiredHeight(activeBr);
       if (isLeft) {
-        const preMergeMainH = bottomOffset + (mergeIdx + 1) * 32;
+        const preMergeMainH = bottomOffset + (mergeIdx > 0 ? mergeIdx * 32 : 0) + 32;
         const brParentSeg = this.segments[activeBr.segIdx];
         const brSIdx = brParentSeg ? (this._leftSegments ? this._leftSegments.findIndex(s => String(s.id) === String(brParentSeg.id)) : activeBr.segIdx) : activeBr.segIdx;
         const brStartY = (this._leftNodeY && this._leftNodeY[brSIdx + 1] !== undefined) ? this._leftNodeY[brSIdx + 1] : bot;
@@ -416,7 +417,7 @@ export class OvalLayout {
           return mergeTargetY - 32 - (stIdx - mergeIdx) * 32;
         }
       } else {
-        const preMergeMainH = topOffset + (mergeIdx + 1) * 32;
+        const preMergeMainH = topOffset + (mergeIdx > 0 ? mergeIdx * 32 : 0) + 32;
         const brParentSeg = this.segments[activeBr.segIdx];
         const brSIdx = brParentSeg ? (this._rightSegments ? this._rightSegments.findIndex(s => String(s.id) === String(brParentSeg.id)) : activeBr.segIdx) : activeBr.segIdx;
         const brStartY = (this._rightNodeY && this._rightNodeY[brSIdx] !== undefined) ? this._rightNodeY[brSIdx] : top;
@@ -455,16 +456,17 @@ export class OvalLayout {
         mergeIdx = seg.stops.findIndex(st => String(st.id) === String(activeBr.targetStopId));
       }
       if (mergeIdx === -1) {
-        mergeIdx = 0;
+        mergeIdx = (!activeBr.targetStopId && seg.stops) ? seg.stops.length : 0;
       }
       const brH = this.getBranchRequiredHeight(activeBr);
-      const preMergeMainH = topOffset + (mergeIdx + 1) * 32;
+      const preMergeMainH = topOffset + (mergeIdx > 0 ? mergeIdx * 32 : 0) + 32;
       const brParentSeg = this.segments[activeBr.segIdx];
       const brSIdx = brParentSeg ? (this._rightSegments ? this._rightSegments.findIndex(s => String(s.id) === String(brParentSeg.id)) : activeBr.segIdx) : activeBr.segIdx;
       const brStartY = (this._rightNodeY && this._rightNodeY[brSIdx] !== undefined) ? this._rightNodeY[brSIdx] : top;
       const mergeOffset = isSameSeg ? Math.max(brH, preMergeMainH) : Math.max(brStartY + brH - top, preMergeMainH);
       const mergeTargetY = top + mergeOffset;
-      return mergeTargetY + 32 + (n - mergeIdx) * 32;
+      const postStops = Math.max(0, n - mergeIdx);
+      return mergeTargetY + 32 + postStops * 32;
     }
 
     return top + topOffset + n * 32;
@@ -484,16 +486,17 @@ export class OvalLayout {
         mergeIdx = seg.stops.findIndex(st => String(st.id) === String(activeBr.targetStopId));
       }
       if (mergeIdx === -1) {
-        mergeIdx = 0;
+        mergeIdx = (!activeBr.targetStopId && seg.stops) ? seg.stops.length : 0;
       }
       const brH = this.getBranchRequiredHeight(activeBr);
-      const preMergeMainH = bottomOffset + (mergeIdx + 1) * 32;
+      const preMergeMainH = bottomOffset + (mergeIdx > 0 ? mergeIdx * 32 : 0) + 32;
       const brParentSeg = this.segments[activeBr.segIdx];
       const brSIdx = brParentSeg ? (this._leftSegments ? this._leftSegments.findIndex(s => String(s.id) === String(brParentSeg.id)) : activeBr.segIdx) : activeBr.segIdx;
       const brStartY = (this._leftNodeY && this._leftNodeY[brSIdx + 1] !== undefined) ? this._leftNodeY[brSIdx + 1] : bot;
       const mergeOffset = isSameSeg ? Math.max(brH, preMergeMainH) : Math.max(bot - (brStartY - brH), preMergeMainH);
       const mergeTargetY = bot - mergeOffset;
-      return mergeTargetY - 32 - (n - mergeIdx) * 32;
+      const postStops = Math.max(0, n - mergeIdx);
+      return mergeTargetY - 32 - postStops * 32;
     }
 
     return bot - bottomOffset - n * 32;

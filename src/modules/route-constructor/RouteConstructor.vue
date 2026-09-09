@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useStopsStore } from '@/stores/stops';
 import RouteCanvas from './components/RouteCanvas.vue';
@@ -8,6 +8,7 @@ import SvgIcon from '@/components/ui/SvgIcon.vue';
 
 const router = useRouter();
 import { migrateToGraph, traverseGraph, addControlNodeGraph, addStopGraph, removeStopGraph, removeNodeGraph, addBranchGraph, addBranchNodeGraph, removeBranchNodeGraph, setBranchConfigGraph } from './utils/graphModel.js';
+import { useGraphHistory } from './utils/graphHistory.js';
 
 const route = useRoute();
 const stopsStore = useStopsStore();
@@ -64,6 +65,46 @@ const initialSegments = [
 ];
 
 const routeGraph = ref(migrateToGraph(initialNodes, initialSegments, []));
+const { undoStack, redoStack, actionLogs, takeSnapshot, undo, redo, clearHistory, canUndo, canRedo } = useGraphHistory(routeGraph);
+
+function handleGlobalKeydown(e) {
+  const isCtrlOrCmd = e.ctrlKey || e.metaKey;
+  if (!isCtrlOrCmd) return;
+
+  const keyLower = (e.key || '').toLowerCase();
+  const code = e.code || '';
+  const keyCode = e.keyCode || e.which || 0;
+
+  const isZ = code === 'KeyZ' || keyLower === 'z' || keyLower === 'я' || keyCode === 90;
+  const isY = code === 'KeyY' || keyLower === 'y' || keyLower === 'н' || keyCode === 89;
+
+  if (!isZ && !isY) return;
+
+  const activeEl = document.activeElement;
+  const isInput = activeEl && (['INPUT', 'TEXTAREA', 'SELECT'].includes(activeEl.tagName) || activeEl.isContentEditable);
+  if (isInput) return;
+
+  e.preventDefault();
+  e.stopPropagation();
+
+  if (isZ) {
+    if (e.shiftKey) {
+      redo();
+    } else {
+      undo();
+    }
+  } else if (isY) {
+    redo();
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', handleGlobalKeydown, true);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleGlobalKeydown, true);
+});
 
 const traversedData = computed(() => traverseGraph(routeGraph.value));
 const nodes = computed(() => traversedData.value.nodes);
@@ -286,11 +327,12 @@ const activeSegmentNodes = computed(() => {
   return [];
 });
 
-/* ─────────── Mutations ─────────── */
 function addStop(sIdx, side, insertIdx = -1) {
-  const segId = segments.value[sIdx]?.id;
-  if (!segId) return;
-  addStopGraph(routeGraph.value, segId, side, insertIdx);
+  const seg = segments.value[sIdx];
+  if (!seg) return;
+  takeSnapshot('Додавання зупинки', { sIdx, side, insertIdx });
+  const newStopId = addStopGraph(routeGraph.value, seg.id, side, insertIdx);
+  // Stop added without hijacking branch targetStopId
 }
 
 function removeStop(sIdx, stIdx) {
@@ -298,6 +340,7 @@ function removeStop(sIdx, stIdx) {
   if (!seg) return;
   const stopId = seg.stops[stIdx]?.id;
   if (!stopId) return;
+  takeSnapshot('Видалення зупинки', { sIdx, stIdx, stopId });
   removeStopGraph(routeGraph.value, seg.id, stopId);
 }
 
@@ -317,6 +360,7 @@ function addControlNode(side = 'right', explicitSegIdx = -1, posMode = 'before')
   if (targetSegIdx === -1 || !segments.value[targetSegIdx]) return null;
   const targetSegId = segments.value[targetSegIdx].id;
 
+  takeSnapshot('Додавання контрольної точки', { side, targetSegIdx, posMode });
   const newId = addControlNodeGraph(routeGraph.value, targetSegId, posMode, side);
 
   setTimeout(() => {
@@ -329,12 +373,14 @@ function addControlNode(side = 'right', explicitSegIdx = -1, posMode = 'before')
 function removeNode(idx) {
   const nodeId = nodes.value[idx]?.id;
   if (!nodeId) return;
+  takeSnapshot('Видалення вузла', { idx, nodeId });
   removeNodeGraph(routeGraph.value, nodeId);
 }
 
 function addBranch(sIdx, parentBranchId = null, parentNodeId = null) {
   const segId = segments.value[sIdx]?.id;
   if (!segId) return null;
+  takeSnapshot('Створення розгалуження', { sIdx, parentBranchId, parentNodeId });
   const newBrNodeId = addBranchGraph(routeGraph.value, segId);
   return newBrNodeId;
 }
@@ -347,6 +393,7 @@ function configBranch(br) {
 
 function configNormalMerge() {
   if (activeBranchToConfig.value) {
+    takeSnapshot('Завершення розгалуження (порожнє)', { brId: activeBranchToConfig.value.id });
     const startNodeId = activeBranchToConfig.value.id.replace('br_', '');
     setBranchConfigGraph(routeGraph.value, startNodeId, {
       targetType: 'current',
@@ -361,6 +408,7 @@ function configNormalMerge() {
 
 function configAddMainLoopSegment() {
   if (activeBranchToConfig.value) {
+    takeSnapshot('Завершення розгалуження (з пілами)', { brId: activeBranchToConfig.value.id });
     const br = activeBranchToConfig.value;
     const startNodeId = br.id.replace('br_', '');
     const parentSegId = routeGraph.value.nodes[startNodeId]?.nextSegId;
@@ -380,6 +428,7 @@ function configAddMainLoopSegment() {
 
 function configMakeControlNode() {
   if (activeBranchToConfig.value) {
+    takeSnapshot('Завершення розгалуження (у контрольну точку)', { brId: activeBranchToConfig.value.id });
     const br = activeBranchToConfig.value;
     const startNodeId = br.id.replace('br_', '');
     const seg = segments.value[br.segIdx];
@@ -398,8 +447,6 @@ function configMakeControlNode() {
 const finishBranchTarget = ref(null);
 const selectedFinishType = ref('current');
 const selectedFinishNodeId = ref(null);
-
-
 
 const currentFinishingBranch = computed(() => branches.value.find(b => b.id === finishBranchTarget.value));
 const isFinishingSubBranch = computed(() => !!currentFinishingBranch.value?.parentBranchId);
@@ -431,6 +478,7 @@ function finishBranch(brId) {
 
 function confirmFinishBranch() {
   if (!finishBranchTarget.value) return;
+  takeSnapshot('Завершення розгалуження', { targetType: selectedFinishType.value });
   const startNodeId = finishBranchTarget.value.replace('br_', '');
   const config = {
     targetType: selectedFinishType.value,
@@ -448,11 +496,13 @@ function confirmFinishBranch() {
 }
 
 function addBranchNode(brId, sectionIdx = 0, posMode = 'after') {
+  takeSnapshot('Додавання точки на розгалуженні', { brId, sectionIdx, posMode });
   const startNodeId = brId.replace('br_', '');
   addBranchNodeGraph(routeGraph.value, startNodeId, sectionIdx, posMode);
 }
 
 function extendBranchWithStop(brId) {
+  takeSnapshot('Продовження розгалуження з зупинкою', { brId });
   const startNodeId = brId.replace('br_', '');
   const newBrNodeId = addBranchNodeGraph(routeGraph.value, startNodeId);
   if (newBrNodeId) {
@@ -467,6 +517,7 @@ function extendBranchWithStop(brId) {
 function addBranchStop(brId, sectionIdx = 0) {
   const br = branches.value.find(b => b.id === brId);
   if (br && br.sections[sectionIdx]) {
+    takeSnapshot('Додавання зупинки на розгалуженні', { brId, sectionIdx });
     addStopGraph(routeGraph.value, br.sections[sectionIdx].id, br.sections[sectionIdx].side || 'right');
   }
 }
@@ -477,6 +528,7 @@ function editBranchStop(brId, sectionIdx, stopIdx) {
     const currentStop = br.sections[sectionIdx].stops[stopIdx];
     const newName = prompt('Назва зупинки на альтернативі (залиште порожнім для видалення):', currentStop.name);
     if (newName !== null) {
+      takeSnapshot('Редагування зупинки на розгалуженні', { brId, newName });
       if (newName.trim() === '') {
         removeStopGraph(routeGraph.value, br.sections[sectionIdx].id, currentStop.id);
       } else {
@@ -493,6 +545,7 @@ function editBranchNode(brId, bNIdx) {
     const currentNode = br.nodes[bNIdx];
     const newName = prompt('Назва контрольної точки на альтернативі (залиште порожнім для видалення):', currentNode.name);
     if (newName !== null) {
+      takeSnapshot('Редагування точки на розгалуженні', { brId, newName });
       if (newName.trim() === '') {
         removeBranchNodeGraph(routeGraph.value, brId.replace('br_', ''), bNIdx);
       } else {
@@ -504,6 +557,7 @@ function editBranchNode(brId, bNIdx) {
 }
 
 function removeBranchNode(brId, bNIdx) {
+  takeSnapshot('Видалення точки на розгалуженні', { brId, bNIdx });
   removeBranchNodeGraph(routeGraph.value, brId.replace('br_', ''), bNIdx);
 }
 /* ─────────── Edit overlays ─────────── */
@@ -710,7 +764,7 @@ const activeSegment = computed(() => {
                   }
                   if (!targetSeg && (!br.targetType || br.targetType === 'current')) {
                     targetSeg = segments.value[br.segIdx];
-                    mergeIdx = 0;
+                    mergeIdx = targetSeg && targetSeg.stops ? (br.targetStopId ? targetSeg.stops.findIndex(st => String(st.id) === String(br.targetStopId)) : targetSeg.stops.length) : -1;
                   }
                   if (targetSeg && mergeIdx !== -1) {
                     const postMergeStops = (targetSeg.stops || []).slice(mergeIdx);
@@ -756,6 +810,7 @@ function assignRealStopToSegStop(stopId, realStopIdStr) {
   const graphStop = routeGraph.value.stops[stopId];
   if (!graphStop) return;
 
+  takeSnapshot('Прив\'язка зупинки з реєстру', { stopId, realStopIdStr });
   if (!realStopIdStr) {
     graphStop.realId = null;
     return;
@@ -769,6 +824,7 @@ function assignRealStopToSegStop(stopId, realStopIdStr) {
 }
 
 function createNewStopForSegStop(stopId, newName) {
+  takeSnapshot('Створення нової зупинки в базі', { stopId, newName });
   const newStopId = Date.now();
   stopsStore.addStop({
     stopId: newStopId,
@@ -804,6 +860,7 @@ function assignRealStopToNode(nodeOrId, realStopIdStr) {
   const graphNode = routeGraph.value.nodes[nodeId];
   if (!graphNode) return;
 
+  takeSnapshot('Прив\'язка вузла до зупинки з реєстру', { nodeId, realStopIdStr });
   if (!realStopIdStr) {
     graphNode.realId = null;
     graphNode.terminusStop = '';
@@ -824,6 +881,7 @@ function createNewStopForNode(nodeOrId, newName) {
   const graphNode = routeGraph.value.nodes[nodeId];
   if (!graphNode) return;
 
+  takeSnapshot('Створення нової зупинки для вузла', { nodeId, newName });
   const newStopId = Date.now();
   stopsStore.addStop({
     stopId: newStopId,
@@ -844,6 +902,7 @@ function makeTerminus(nodeId) {
   if (!nodeId) return;
   const n = routeGraph.value.nodes[nodeId];
   if (n) {
+    takeSnapshot('Зробити кінцевою точкою', { nodeId: n.id });
     n.isTerminus = true;
     if (!n.realId) {
       n.name = `Кінцева ${n.id}`;
@@ -859,6 +918,7 @@ function removeTerminus(node) {
   const nodeId = typeof node === 'object' && node !== null ? node.id : node;
   const graphNode = routeGraph.value.nodes[nodeId];
   if (graphNode) {
+    takeSnapshot('Зняти статус кінцевої точки', { nodeId });
     graphNode.isTerminus = false;
     graphNode.realId = null;
     graphNode.terminusStop = '';
@@ -870,6 +930,7 @@ function removeStopFromSeg(seg, stopOrIdx) {
   const stop = typeof stopOrIdx === 'number' ? seg.stops[stopOrIdx] : stopOrIdx;
   if (!stop) return;
   
+  takeSnapshot('Видалення зупинки', { segId: seg.id, stopId: stop.id });
   const idx = seg.stops ? seg.stops.findIndex(s => s.id === stop.id) : -1;
   if (idx !== -1) {
     removeStopGraph(routeGraph.value, seg.id, stop.id);
@@ -1078,6 +1139,10 @@ const canvasRef = ref(null);
               <button @click="inspectorTab = 'nodes'" :class="inspectorTab === 'nodes' ? 'bg-blue-600 text-white font-bold' : 'bg-gray-800 text-gray-400 hover:text-white'" class="px-2 py-1 rounded text-[10px] transition cursor-pointer">Вузли</button>
               <button @click="inspectorTab = 'segs'" :class="inspectorTab === 'segs' ? 'bg-blue-600 text-white font-bold' : 'bg-gray-800 text-gray-400 hover:text-white'" class="px-2 py-1 rounded text-[10px] transition cursor-pointer">Ділянки</button>
               <button @click="inspectorTab = 'stops'" :class="inspectorTab === 'stops' ? 'bg-blue-600 text-white font-bold' : 'bg-gray-800 text-gray-400 hover:text-white'" class="px-2 py-1 rounded text-[10px] transition cursor-pointer">Зупинки</button>
+              <button @click="inspectorTab = 'history'" :class="inspectorTab === 'history' ? 'bg-amber-600 text-white font-bold' : 'bg-gray-800 text-gray-400 hover:text-white'" class="px-2 py-1 rounded text-[10px] transition cursor-pointer flex items-center gap-1">
+                <span>📜 Логи</span>
+                <span v-if="undoStack.length > 0" class="px-1 py-0.2 rounded-full bg-amber-900 text-amber-200 text-[8px]">{{ undoStack.length }}</span>
+              </button>
               <button @click="showGraphInspector = false" class="text-gray-400 hover:text-white ml-2 text-sm cursor-pointer p-1">✕</button>
             </div>
           </div>
@@ -1255,6 +1320,64 @@ const canvasRef = ref(null);
               </div>
             </div>
 
+            <!-- TAB 5: HISTORY & LOGS -->
+            <div v-else-if="inspectorTab === 'history'" class="space-y-2">
+              <div class="flex items-center justify-between bg-gray-900/80 p-2.5 rounded-xl border border-gray-800 gap-2">
+                <div class="flex items-center gap-1.5">
+                  <button @click="undo" :disabled="!canUndo"
+                          class="px-2.5 py-1 rounded bg-amber-600 hover:bg-amber-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-[10px] flex items-center gap-1 transition cursor-pointer">
+                    <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
+                    <span>Undo (Ctrl+Z)</span>
+                  </button>
+                  <button @click="redo" :disabled="!canRedo"
+                          class="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-[10px] flex items-center gap-1 transition cursor-pointer">
+                    <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 10h-10a8 8 0 00-8 8v2m18-10l-6 6m6-6l-6-6" /></svg>
+                    <span>Redo (Ctrl+Y)</span>
+                  </button>
+                </div>
+                <button @click="clearHistory"
+                        class="text-[9px] text-gray-400 hover:text-red-400 transition cursor-pointer">
+                  Очистити
+                </button>
+              </div>
+
+              <div class="text-[10px] text-gray-400 flex items-center justify-between px-1">
+                <span>Стек скасування: <b class="text-amber-400">{{ undoStack.length }}</b></span>
+                <span>Стек повторення: <b class="text-emerald-400">{{ redoStack.length }}</b></span>
+                <span>Всього логів: <b class="text-gray-200">{{ actionLogs.length }}</b></span>
+              </div>
+
+              <div v-if="actionLogs.length === 0" class="p-6 text-center text-gray-500 italic">
+                Жодних дій ще не зафіксовано.<br>Виконайте будь-яку дію на схемі для появи логів.
+              </div>
+
+              <div v-for="log in actionLogs" :key="log.id"
+                   class="p-2 rounded-lg border transition"
+                   :class="{
+                     'bg-blue-950/30 border-blue-900/60': log.type === 'action',
+                     'bg-amber-950/30 border-amber-900/60': log.type === 'undo',
+                     'bg-emerald-950/30 border-emerald-900/60': log.type === 'redo'
+                   }">
+                <div class="flex items-center justify-between mb-0.5">
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-[8px] font-bold px-1.5 py-0.2 rounded uppercase"
+                          :class="{
+                            'bg-blue-900 text-blue-200': log.type === 'action',
+                            'bg-amber-900 text-amber-200': log.type === 'undo',
+                            'bg-emerald-900 text-emerald-200': log.type === 'redo'
+                          }">
+                      {{ log.type }}
+                    </span>
+                    <span class="text-gray-200 font-bold">{{ log.action }}</span>
+                  </div>
+                  <span class="text-[9px] text-gray-500">{{ log.time }}</span>
+                </div>
+                <div v-if="log.details" class="text-[9px] text-gray-400 font-mono mt-1 bg-black/40 p-1 rounded overflow-x-auto">
+                  {{ JSON.stringify(log.details) }}
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
       </Teleport>
@@ -1281,15 +1404,21 @@ const canvasRef = ref(null);
             </span>
           </div>
 
-          <!-- 4 Buttons in 2 Rows -->
+          <!-- Action Buttons Grid -->
           <div class="grid grid-cols-2 gap-2">
-            <!-- Cloud / Save -->
-            <button class="w-8 h-8 rounded-full border border-gray-300 bg-white shadow-sm flex items-center justify-center text-gray-700 hover:bg-gray-50 cursor-pointer">
-              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" /></svg>
-            </button>
-            <!-- Undo -->
-            <button class="w-8 h-8 rounded-full border border-gray-300 bg-white shadow-sm flex items-center justify-center text-gray-700 hover:bg-gray-50 cursor-pointer">
+            <!-- Undo (Ctrl+Z) -->
+            <button @click="undo" :disabled="!canUndo"
+                    class="w-8 h-8 rounded-full border shadow-sm flex items-center justify-center transition-all cursor-pointer"
+                    :class="canUndo ? 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50' : 'bg-gray-100 text-gray-300 border-gray-200 cursor-not-allowed'"
+                    title="Скасувати дію (Ctrl+Z)">
               <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
+            </button>
+            <!-- Redo (Ctrl+Y / Ctrl+Shift+Z) -->
+            <button @click="redo" :disabled="!canRedo"
+                    class="w-8 h-8 rounded-full border shadow-sm flex items-center justify-center transition-all cursor-pointer"
+                    :class="canRedo ? 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50' : 'bg-gray-100 text-gray-300 border-gray-200 cursor-not-allowed'"
+                    title="Повторити дію (Ctrl+Y / Ctrl+Shift+Z)">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 10h-10a8 8 0 00-8 8v2m18-10l-6 6m6-6l-6-6" /></svg>
             </button>
             <!-- Branch Toggle (Branch SVG Icon) -->
             <button @click="isBranchMode = !isBranchMode; if (isBranchMode) isEditable = true"

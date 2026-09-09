@@ -284,9 +284,9 @@
               <g>
                 <!-- Clean Bypassed Add Pill inside the loop on the main rail (x = 18) -->
                 <g class="anim-row" style="pointer-events: auto;">
-                  <rect :x="layout.rightX + 18" y="-14" :width="activeExpandedPill === ('bypassed-' + br.id + '-' + seg.id) ? 78 : 64" height="28" rx="14"
+                  <rect :x="layout.rightX + 18" y="-14" width="64" height="28" rx="14"
                         fill="#ffffff" stroke="#9ca3af" stroke-width="1.5"
-                        style="box-shadow: 0 1px 2px rgba(0,0,0,0.05); transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);" />
+                        style="box-shadow: 0 1px 2px rgba(0,0,0,0.05);" />
                   <!-- Add Stop sub-button -->
                   <g style="cursor:pointer;" title="Додати зупинку усередині цієї ділянки" @click.stop="$emit('add-stop', segments.indexOf(seg), 'right', getBypassedInsertIdx(br, seg))">
                     <rect :x="layout.rightX + 18" y="-14" width="32" height="28" fill="transparent" rx="14"/>
@@ -296,28 +296,11 @@
                   </g>
                   <!-- Divider -->
                   <line :x1="layout.rightX + 50" y1="-10" :x2="layout.rightX + 50" y2="10" stroke="#9ca3af" stroke-width="1" />
-                  <!-- Collapsed: Plus Icon to toggle expand -->
-                  <g v-if="activeExpandedPill !== ('bypassed-' + br.id + '-' + seg.id)" style="cursor:pointer;" title="Додати контрольну точку" @click.stop="togglePillExpand('bypassed-' + br.id + '-' + seg.id)">
+                  <!-- Plus Icon directly adds control node (no expand / no options) -->
+                  <g style="cursor:pointer;" title="Додати контрольну точку" @click.stop="handleAddNode('right', segments.indexOf(seg), 'bypassed_split')">
                     <rect :x="layout.rightX + 50" y="-14" width="32" height="28" fill="transparent" rx="14"/>
                     <g :transform="'translate(' + (layout.rightX + 60.7) + ', -5.3)'" fill="#4b5563">
                       <path transform="scale(0.7)" d="M1.00195 8.36719H6.36328V13.7285C6.36328 14.2734 6.81152 14.7305 7.36523 14.7305C7.91895 14.7305 8.36719 14.2734 8.36719 13.7285V8.36719H13.7285C14.2734 8.36719 14.7305 7.91895 14.7305 7.36523C14.7305 6.81152 14.2734 6.36328 13.7285 6.36328H8.36719V1.00195C8.36719 0.457031 7.91895 0 7.36523 0C6.81152 0 6.36328 0.457031 6.36328 1.00195V6.36328H1.00195C0.457031 6.36328 0 6.81152 0 7.36523C0 7.91895 0.457031 8.36719 1.00195 8.36719Z" />
-                    </g>
-                  </g>
-                  <!-- Expanded: Two Arrow Options -->
-                  <g v-else>
-                    <!-- Option 1: Insert Before End (Straight Arrow) -->
-                    <g style="cursor:pointer;" title="Вставити перед контрольною кінця ділянки" @click.stop="handleAddNode('right', segments.indexOf(seg), 'bypassed_split')">
-                      <rect :x="layout.rightX + 50" y="-14" width="23" height="28" fill="transparent"/>
-                      <g :transform="'translate(' + (layout.rightX + 59.1) + ', -4.1)'" fill="#4b5563">
-                        <path transform="scale(0.58)" d="M0 6.82031C0 7.08398 0.114258 7.34766 0.316406 7.54102L6.11719 13.333C6.32812 13.5352 6.55664 13.6318 6.81152 13.6318C7.36523 13.6318 7.76953 12.3363 7.76953 12.7002C7.76953 12.4189 7.66406 12.1816 7.47949 12.0059L5.50195 10.002L2.95312 7.67285L5.00098 7.7959H15.6533C16.2334 7.7959 16.6377 7.3916 16.6377 6.82031C16.6377 6.24023 16.2334 5.83594 15.6533 5.83594H5.00098L2.96191 5.95898L5.50195 3.62988L7.47949 1.62598C7.66406 1.4502 7.76953 1.21289 7.76953 0.931641C7.76953 0.395508 7.36523 0 6.81152 0C6.55664 0 6.31934 0.0966797 6.09082 0.316406L0.316406 6.09082C0.114258 6.28418 0 6.54785 0 6.82031Z" />
-                      </g>
-                    </g>
-                    <!-- Option 2: Insert After End (Curved Arrow) -->
-                    <g style="cursor:pointer;" title="Додати після цієї контрольної точки на кінці" @click.stop="handleAddNode('right', segments.indexOf(seg), 'after')">
-                      <rect :x="layout.rightX + 73" y="-14" width="23" height="28" fill="transparent" rx="11.5"/>
-                      <g :transform="'translate(' + (layout.rightX + 76.5) + ', -4.7)'" fill="#4b5563">
-                        <path transform="scale(0.55)" d="M6.04688 16.5059C6.61816 16.5059 6.99609 16.1191 6.99609 15.5742C6.99609 15.293 6.88184 15.082 6.71484 14.9062L4.44727 12.7002L2.90039 11.3994L4.93945 11.4873H15.917C18.1143 11.4873 19.0459 10.4941 19.0459 8.34082V3.12891C19.0459 0.931641 18.1143 0 15.917 0H11.0391C10.4678 0 10.0635 0.430664 10.0635 0.958008C10.0635 1.48535 10.459 1.91602 11.0391 1.91602H15.873C16.7695 1.91602 17.1475 2.29395 17.1475 3.18164V8.2793C17.1475 9.18457 16.7607 9.5625 15.873 9.5625H4.93945L2.90039 9.65918L4.44727 8.34961L6.71484 6.14355C6.88184 5.97656 6.99609 5.76562 6.99609 5.47559C6.99609 4.93066 6.61816 4.54395 6.04688 4.54395C5.80957 4.54395 5.5459 4.64941 5.35254 4.84277L0.307617 9.80859C0.105469 10.002 0 10.2656 0 10.5293C0 10.7842 0.105469 11.0479 0.307617 11.2412L5.35254 16.2158C5.5459 16.4004 5.80957 16.5059 6.04688 16.5059Z" />
-                      </g>
                     </g>
                   </g>
                 </g>
@@ -327,7 +310,7 @@
 
           <!-- Apple-style Unified Add Pill (Right Rail) -->
           <g class="anim-row" :style="getMainAddPillStyle('right', seg, i)">
-            <rect :x="layout.rightX + 18" y="-14" :width="(i !== layout.rightSegments.length - 1 && activeExpandedPill === ('right-' + segments.indexOf(seg))) ? 78 : 64" height="28" rx="14"
+            <rect :x="layout.rightX + 18" y="-14" :width="(!isPillSinglePlus('right', seg, i) && activeExpandedPill === ('right-' + segments.indexOf(seg))) ? 78 : 64" height="28" rx="14"
                   fill="#ffffff" stroke="#9ca3af" stroke-width="1.5"
                   style="box-shadow: 0 1px 2px rgba(0,0,0,0.05); transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);" />
             
@@ -342,15 +325,15 @@
             <!-- Vertical Divider 1 -->
             <line :x1="layout.rightX + 50" y1="-10" :x2="layout.rightX + 50" y2="10" stroke="#9ca3af" stroke-width="1" />
 
-            <!-- COLLAPSED / TURNAROUND: Plus Icon -->
-            <g v-if="i === layout.rightSegments.length - 1 || activeExpandedPill !== ('right-' + segments.indexOf(seg))" style="cursor:pointer;" title="Додати контрольну точку" @click.stop="i === layout.rightSegments.length - 1 ? handleAddNode('right', segments.indexOf(seg), 'before') : togglePillExpand('right-' + segments.indexOf(seg))">
+            <!-- COLLAPSED / SINGLE PLUS: Plus Icon -->
+            <g v-if="isPillSinglePlus('right', seg, i) || activeExpandedPill !== ('right-' + segments.indexOf(seg))" style="cursor:pointer;" title="Додати контрольну точку" @click.stop="isPillSinglePlus('right', seg, i) ? handleAddNode('right', segments.indexOf(seg), 'before') : togglePillExpand('right-' + segments.indexOf(seg))">
               <rect :x="layout.rightX + 50" y="-14" width="32" height="28" fill="transparent" rx="14"/>
               <g :transform="'translate(' + (layout.rightX + 60.7) + ', -5.3)'" fill="#4b5563">
                 <path transform="scale(0.7)" d="M1.00195 8.36719H6.36328V13.7285C6.36328 14.2734 6.81152 14.7305 7.36523 14.7305C7.91895 14.7305 8.36719 14.2734 8.36719 13.7285V8.36719H13.7285C14.2734 8.36719 14.7305 7.91895 14.7305 7.36523C14.7305 6.81152 14.2734 6.36328 13.7285 6.36328H8.36719V1.00195C8.36719 0.457031 7.91895 0 7.36523 0C6.81152 0 6.36328 0.457031 6.36328 1.00195V6.36328H1.00195C0.457031 6.36328 0 6.81152 0 7.36523C0 7.91895 0.457031 8.36719 1.00195 8.36719Z" />
               </g>
             </g>
 
-            <!-- EXPANDED: Two Arrow Options -->
+            <!-- EXPANDED: Two Arrow Options (Only for intermediate segments without merges/branches) -->
             <g v-else>
               <!-- Option 1: Insert Before End (Straight Arrow) -->
               <g style="cursor:pointer;" title="Вставити перед контрольною кінця ділянки" @click.stop="handleAddNode('right', segments.indexOf(seg), 'before')">
@@ -427,12 +410,14 @@
                       :stroke="color" stroke-width="4.5" stroke-linecap="square"/>
                 <text :x="layout.rightX + getBranchDx(br) + 18"
                       :y="getBranchStopY(br, secIdx, bStIdx, i, true) + 4"
-                      font-size="12" font-weight="500" fill="#111827">{{ bStop.name }}</text>
+                      font-size="12" font-weight="500" fill="#111827">
+                  {{ bStop.name }}
+                </text>
               </g>
               <!-- Apple-style Unified Add Pill (Right Branch) -->
               <g class="anim-row"
                  :style="{ opacity: (editable && !localBranchMode) ? 1 : 0, pointerEvents: (editable && !localBranchMode) ? 'auto' : 'none', transition: 'opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1)', transform: 'translate(' + (layout.rightX + getBranchDx(br) + 16) + 'px, ' + getBranchAddStopY(br, secIdx, i, true) + 'px)' }">
-                <rect x="0" y="-14" :width="activeExpandedPill === ('rbr-' + br.id + '-' + secIdx) ? 78 : 64" height="28" rx="14"
+                <rect x="0" y="-14" :width="(!isBranchSecSinglePlus(br, secIdx) && activeExpandedPill === ('rbr-' + br.id + '-' + secIdx)) ? 78 : 64" height="28" rx="14"
                       fill="#ffffff" stroke="#9ca3af" stroke-width="1.5"
                       style="box-shadow: 0 1px 2px rgba(0,0,0,0.05); transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);" />
                 
@@ -447,8 +432,8 @@
                 <!-- Vertical Divider 1 -->
                 <line x1="32" y1="-10" x2="32" y2="10" stroke="#9ca3af" stroke-width="1" />
 
-                <!-- COLLAPSED: Plus Icon to Expand -->
-                <g v-if="activeExpandedPill !== ('rbr-' + br.id + '-' + secIdx)" style="cursor:pointer;" title="Додати контрольну точку" @click.stop="togglePillExpand('rbr-' + br.id + '-' + secIdx)">
+                <!-- COLLAPSED / SINGLE PLUS: Plus Icon -->
+                <g v-if="isBranchSecSinglePlus(br, secIdx) || activeExpandedPill !== ('rbr-' + br.id + '-' + secIdx)" style="cursor:pointer;" title="Додати контрольну точку" @click.stop="isBranchSecSinglePlus(br, secIdx) ? handleAddBranchNode(br.id, secIdx - 1, 'before') : togglePillExpand('rbr-' + br.id + '-' + secIdx)">
                   <rect x="32" y="-14" width="32" height="28" fill="transparent" rx="14"/>
                   <g transform="translate(42.7, -5.3)" fill="#4b5563">
                     <path transform="scale(0.7)" d="M1.00195 8.36719H6.36328V13.7285C6.36328 14.2734 6.81152 14.7305 7.36523 14.7305C7.91895 14.7305 8.36719 14.2734 8.36719 13.7285V8.36719H13.7285C14.2734 8.36719 14.7305 7.91895 14.7305 7.36523C14.7305 6.81152 14.2734 6.36328 13.7285 6.36328H8.36719V1.00195C8.36719 0.457031 7.91895 0 7.36523 0C6.81152 0 6.36328 0.457031 6.36328 1.00195V6.36328H1.00195C0.457031 6.36328 0 6.81152 0 7.36523C0 7.91895 0.457031 8.36719 1.00195 8.36719Z" />
@@ -457,19 +442,19 @@
 
                 <!-- EXPANDED: Two Arrow Options (Right Branch) -->
                 <g v-else>
-                  <!-- Option 2: Add Control Node After (Icon 2) -->
-                  <g style="cursor:pointer;" title="Додати після на альтернативі" @click.stop="handleAddBranchNode(br.id, secIdx - 1, 'after')">
-                    <rect x="32" y="-14" width="23" height="28" fill="transparent" rx="11.5"/>
-                    <g transform="translate(36.5, -4.7)" fill="#4b5563">
-                      <path transform="scale(0.55)" d="M6.04688 16.5059C6.61816 16.5059 6.99609 16.1191 6.99609 15.5742C6.99609 15.293 6.88184 15.082 6.71484 14.9062L4.44727 12.7002L2.90039 11.3994L4.93945 11.4873H15.917C18.1143 11.4873 19.0459 10.4941 19.0459 8.34082V3.12891C19.0459 0.931641 18.1143 0 15.917 0H11.0391C10.4678 0 10.0635 0.430664 10.0635 0.958008C10.0635 1.48535 10.459 1.91602 11.0391 1.91602H15.873C16.7695 1.91602 17.1475 2.29395 17.1475 3.18164V8.2793C17.1475 9.18457 16.7607 9.5625 15.873 9.5625H4.93945L2.90039 9.65918L4.44727 8.34961L6.71484 6.14355C6.88184 5.97656 6.99609 5.76562 6.99609 5.47559C6.99609 4.93066 6.61816 4.54395 6.04688 4.54395C5.80957 4.54395 5.5459 4.64941 5.35254 4.84277L0.307617 9.80859C0.105469 10.002 0 10.2656 0 10.5293C0 10.7842 0.105469 11.0479 0.307617 11.2412L5.35254 16.2158C5.5459 16.4004 5.80957 16.5059 6.04688 16.5059Z" />
+                  <!-- Option 1: Add Control Node Before (Icon 1) -->
+                  <g style="cursor:pointer;" title="Вставити перед на альтернативі" @click.stop="handleAddBranchNode(br.id, secIdx - 1, 'before')">
+                    <rect x="32" y="-14" width="23" height="28" fill="transparent"/>
+                    <g transform="translate(41.1, -4.1)" fill="#4b5563">
+                      <path transform="scale(0.58)" d="M0 6.82031C0 7.08398 0.114258 7.34766 0.316406 7.54102L6.11719 13.333C6.32812 13.5352 6.55664 13.6318 6.81152 13.6318C7.36523 13.6318 7.76953 12.3363 7.76953 12.7002C7.76953 12.4189 7.66406 12.1816 7.47949 12.0059L5.50195 10.002L2.95312 7.67285L5.00098 7.7959H15.6533C16.2334 7.7959 16.6377 7.3916 16.6377 6.82031C16.6377 6.24023 16.2334 5.83594 15.6533 5.83594H5.00098L2.96191 5.95898L5.50195 3.62988L7.47949 1.62598C7.66406 1.4502 7.76953 1.21289 7.76953 0.931641C7.76953 0.395508 7.36523 0 6.81152 0C6.55664 0 6.31934 0.0966797 6.09082 0.316406L0.316406 6.09082C0.114258 6.28418 0 6.54785 0 6.82031Z" />
                     </g>
                   </g>
 
-                  <!-- Option 1: Add Control Node Before (Icon 1) -->
-                  <g style="cursor:pointer;" title="Вставити перед на альтернативі" @click.stop="handleAddBranchNode(br.id, secIdx - 1, 'before')">
-                    <rect x="55" y="-14" width="23" height="28" fill="transparent"/>
-                    <g transform="translate(68.9, -4.1) scale(-1, 1)" fill="#4b5563">
-                      <path transform="scale(0.58)" d="M0 6.82031C0 7.08398 0.114258 7.34766 0.316406 7.54102L6.11719 13.333C6.32812 13.5352 6.55664 13.6318 6.81152 13.6318C7.36523 13.6318 7.76953 12.3363 7.76953 12.7002C7.76953 12.4189 7.66406 12.1816 7.47949 12.0059L5.50195 10.002L2.95312 7.67285L5.00098 7.7959H15.6533C16.2334 7.7959 16.6377 7.3916 16.6377 6.82031C16.6377 6.24023 16.2334 5.83594 15.6533 5.83594H5.00098L2.96191 5.95898L5.50195 3.62988L7.47949 1.62598C7.66406 1.4502 7.76953 1.21289 7.76953 0.931641C7.76953 0.395508 7.36523 0 6.81152 0C6.55664 0 6.31934 0.0966797 6.09082 0.316406L0.316406 6.09082C0.114258 6.28418 0 6.54785 0 6.82031Z" />
+                  <!-- Option 2: Add Control Node After (Icon 2) -->
+                  <g style="cursor:pointer;" title="Додати після на альтернативі" @click.stop="handleAddBranchNode(br.id, secIdx - 1, 'after')">
+                    <rect x="55" y="-14" width="23" height="28" fill="transparent" rx="11.5"/>
+                    <g transform="translate(58.5, -4.7)" fill="#4b5563">
+                      <path transform="scale(0.55)" d="M6.04688 16.5059C6.61816 16.5059 6.99609 16.1191 6.99609 15.5742C6.99609 15.293 6.88184 15.082 6.71484 14.9062L4.44727 12.7002L2.90039 11.3994L4.93945 11.4873H15.917C18.1143 11.4873 19.0459 10.4941 19.0459 8.34082V3.12891C19.0459 0.931641 18.1143 0 15.917 0H11.0391C10.4678 0 10.0635 0.430664 10.0635 0.958008C10.0635 1.48535 10.459 1.91602 11.0391 1.91602H15.873C16.7695 1.91602 17.1475 2.29395 17.1475 3.18164V8.2793C17.1475 9.18457 16.7607 9.5625 15.873 9.5625H4.93945L2.90039 9.65918L4.44727 8.34961L6.71484 6.14355C6.88184 5.97656 6.99609 5.76562 6.99609 5.47559C6.99609 4.93066 6.61816 4.54395 6.04688 4.54395C5.80957 4.54395 5.5459 4.64941 5.35254 4.84277L0.307617 9.80859C0.105469 10.002 0 10.2656 0 10.5293C0 10.7842 0.105469 11.0479 0.307617 11.2412L5.35254 16.2158C5.5459 16.4004 5.80957 16.5059 6.04688 16.5059Z" />
                     </g>
                   </g>
                 </g>
@@ -508,55 +493,32 @@
                 @click="zoomToSegment('left', i)" />
 
           <!-- Left Rail Stops -->
-          <g v-for="(st, stIdx) in seg.stops || []" :key="'lst-' + st.id"
+          <g class="anim-row stop-item" v-for="(st, stIdx) in seg.stops || []" :key="'lst-' + st.id"
+             :style="{ transform: 'translate(0px, ' + layout.stopY(seg, layout.leftNodeY[i], layout.leftNodeY[i+1], stIdx, i === layout.leftSegments.length - 1, segments.indexOf(seg)) + 'px)' }"
              style="cursor:pointer;"
-             @click.stop="$emit('edit-stop', st)">
-            <line :x1="layout.leftX"
-                  :y1="layout.stopY(seg, layout.leftNodeY[i], layout.leftNodeY[i+1], stIdx, i === layout.leftSegments.length - 1, segments.indexOf(seg))"
-                  :x2="layout.leftX - 12"
-                  :y2="layout.stopY(seg, layout.leftNodeY[i], layout.leftNodeY[i+1], stIdx, i === layout.leftSegments.length - 1, segments.indexOf(seg))"
-                  :stroke="color" :stroke-width="layout.TICK_W" stroke-linecap="square" />
-            <circle :cx="layout.leftX - 12"
-                    :cy="layout.stopY(seg, layout.leftNodeY[i], layout.leftNodeY[i+1], stIdx, i === layout.leftSegments.length - 1, segments.indexOf(seg))"
-                    r="2.5" :fill="color" />
-            <text :x="layout.leftX - 18"
-                  :y="layout.stopY(seg, layout.leftNodeY[i], layout.leftNodeY[i+1], stIdx, i === layout.leftSegments.length - 1, segments.indexOf(seg)) + 4"
+             @click.stop="zoomToSegment('left', i)">
+            <line :x1="layout.leftX" y1="0"
+                  :x2="layout.leftX - 12" y2="0"
+                  :stroke="color" stroke-width="4.5" stroke-linecap="square"/>
+            <text :x="layout.leftX - 18" y="4"
                   font-size="12" font-weight="500" fill="#111827" text-anchor="end">
               {{ st.name }}
             </text>
           </g>
-
-          <!-- Clean Bypassed Add Pill on Left Rail -->
+                    <!-- Clean Bypassed Add Pill on Left Rail -->
           <template v-for="br in getBypassedBranchesForSeg(seg)" :key="'lbr-q-' + br.id">
             <g v-if="br.finished && (editable && !localBranchMode)"
                class="anim-row"
                :style="getBypassedTopPillStyle(br, i, false)">
-              <rect :x="activeExpandedPill === ('bypassed-' + br.id + '-' + seg.id) ? (layout.leftX - 96) : (layout.leftX - 82)" y="-14" :width="activeExpandedPill === ('bypassed-' + br.id + '-' + seg.id) ? 78 : 64" height="28" rx="14"
+              <rect :x="layout.leftX - 82" y="-14" width="64" height="28" rx="14"
                     fill="#ffffff" stroke="#9ca3af" stroke-width="1.5"
-                    style="box-shadow: 0 1px 2px rgba(0,0,0,0.05); transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), x 0.3s cubic-bezier(0.4, 0, 0.2, 1);" />
+                    style="box-shadow: 0 1px 2px rgba(0,0,0,0.05);" />
               
-              <!-- Collapsed: Plus Icon -->
-              <g v-if="activeExpandedPill !== ('bypassed-' + br.id + '-' + seg.id)" style="cursor:pointer;" title="Додати контрольну точку" @click.stop="togglePillExpand('bypassed-' + br.id + '-' + seg.id)">
+              <!-- Plus Icon: directly adds control node (no options/variants) -->
+              <g style="cursor:pointer;" title="Додати контрольну точку" @click.stop="handleAddNode('left', segments.indexOf(seg), 'bypassed_split')">
                 <rect :x="layout.leftX - 82" y="-14" width="32" height="28" fill="transparent" rx="14"/>
                 <g :transform="'translate(' + (layout.leftX - 71.3) + ', -5.3)'" fill="#4b5563">
                   <path transform="scale(0.7)" d="M1.00195 8.36719H6.36328V13.7285C6.36328 14.2734 6.81152 14.7305 7.36523 14.7305C7.91895 14.7305 8.36719 14.2734 8.36719 13.7285V8.36719H13.7285C14.2734 8.36719 14.7305 7.91895 14.7305 7.36523C14.7305 6.81152 14.2734 6.36328 13.7285 6.36328H8.36719V1.00195C8.36719 0.457031 7.91895 0 7.36523 0C6.81152 0 6.36328 0.457031 6.36328 1.00195V6.36328H1.00195C0.457031 6.36328 0 6.81152 0 7.36523C0 7.91895 0.457031 8.36719 1.00195 8.36719Z" />
-                </g>
-              </g>
-              <!-- Expanded: Two Arrow Options -->
-              <g v-else>
-                <!-- Option 2: Add Control Node After End (Curved Arrow) -->
-                <g style="cursor:pointer;" title="Додати після цієї контрольної точки на кінці" @click.stop="handleAddNode('left', segments.indexOf(seg), 'after')">
-                  <rect :x="layout.leftX - 96" y="-14" width="23" height="28" fill="transparent" rx="11.5"/>
-                  <g :transform="'translate(' + (layout.leftX - 87.5) + ', -4.7)'" fill="#4b5563">
-                    <path transform="scale(0.55)" d="M6.04688 16.5059C6.61816 16.5059 6.99609 16.1191 6.99609 15.5742C6.99609 15.293 6.88184 15.082 6.71484 14.9062L4.44727 12.7002L2.90039 11.3994L4.93945 11.4873H15.917C18.1143 11.4873 19.0459 10.4941 19.0459 8.34082V3.12891C19.0459 0.931641 18.1143 0 15.917 0H11.0391C10.4678 0 10.0635 0.430664 10.0635 0.958008C10.0635 1.48535 10.459 1.91602 11.0391 1.91602H15.873C16.7695 1.91602 17.1475 2.29395 17.1475 3.18164V8.2793C17.1475 9.18457 16.7607 9.5625 15.873 9.5625H4.93945L2.90039 9.65918L4.44727 8.34961L6.71484 6.14355C6.88184 5.97656 6.99609 5.76562 6.99609 5.47559C6.99609 4.93066 6.61816 4.54395 6.04688 4.54395C5.80957 4.54395 5.5459 4.64941 5.35254 4.84277L0.307617 9.80859C0.105469 10.002 0 10.2656 0 10.5293C0 10.7842 0.105469 11.0479 0.307617 11.2412L5.35254 16.2158C5.5459 16.4004 5.80957 16.5059 6.04688 16.5059Z" />
-                  </g>
-                </g>
-                <!-- Option 1: Add Control Node Before End (Straight Arrow) -->
-                <g style="cursor:pointer;" title="Вставити перед контрольною кінця ділянки" @click.stop="handleAddNode('left', segments.indexOf(seg), 'bypassed_split')">
-                  <rect :x="layout.leftX - 73" y="-14" width="23" height="28" fill="transparent"/>
-                  <g :transform="'translate(' + (layout.leftX - 59.1) + ', -4.1) scale(-1, 1)'" fill="#4b5563">
-                    <path transform="scale(0.58)" d="M0 6.82031C0 7.08398 0.114258 7.34766 0.316406 7.54102L6.11719 13.333C6.32812 13.5352 6.55664 13.6318 6.81152 13.6318C7.36523 13.6318 7.76953 12.3363 7.76953 12.7002C7.76953 12.4189 7.66406 12.1816 7.47949 12.0059L5.50195 10.002L2.95312 7.67285L5.00098 7.7959H15.6533C16.2334 7.7959 16.6377 7.3916 16.6377 6.82031C16.6377 6.24023 16.2334 5.83594 15.6533 5.83594H5.00098L2.96191 5.95898L5.50195 3.62988L7.47949 1.62598C7.66406 1.4502 7.76953 1.21289 7.76953 0.931641C7.76953 0.395508 7.36523 0 6.81152 0C6.55664 0 6.31934 0.0966797 6.09082 0.316406L0.316406 6.09082C0.114258 6.28418 0 6.54785 0 6.82031Z" />
-                  </g>
                 </g>
               </g>
 
@@ -568,19 +530,19 @@
                 <rect :x="layout.leftX - 50" y="-14" width="32" height="28" fill="transparent" rx="14"/>
                 <g :transform="'translate(' + (layout.leftX - 30.5) + ', -7) scale(-1, 1)'" fill="#4b5563">
                   <path transform="scale(0.5)" d="M5.78869 27.4289C6.5345 27.4289 7.07691 26.9543 7.07691 26.0616V17.3943C7.07691 17.0101 7.25772 16.7841 7.56282 16.7841C7.86793 16.7841 8.06003 17.0101 8.06003 17.3943V26.0616C8.06003 26.9543 8.60244 27.4289 9.34826 27.4289ZM10.0828 27.4289 10.6252 26.9543 10.6252 26.0616V11.4165C10.6252 11.1114 10.7721 10.9306 11.0207 10.9306C11.258 10.9306 11.4162 11.1114 11.4162 11.4165V17.4282C11.4162 18.2305 11.8908 18.6825 12.5688 18.6825C13.2468 18.6825 13.7101 18.2305 13.7101 17.4282V11.5521C13.7101 7.9699 11.6874 7.04328 7.67583 7.04328H5.93559C5.15588 7.04328 4.76037 6.93027 4.13885 6.47827L2.64723 5.42735L2.37602 1.20106C2.31952 0.387446 1.79971 -0.0419624 1.1217 0.00323846C0.432382 0.0371391 -0.0422274 0.534349 0.00297345 1.33666L0.274179 5.52905C0.33068 6.44437 0.692287 6.97548 1.2573 7.39358L3.96935 9.37112C4.36486 9.65363 4.50046 10.0039 4.50046 10.4559V26.0616C4.50046 26.9543 5.05417 27.4289 5.78869 27.4289ZM7.67583 5.91325C9.17875 5.91325 10.3879 4.67023 10.3879 3.2125C10.3879 1.70957 9.17875 0.489148 7.67583 0.489148C6.16159 0.489148 4.97507 1.70957 4.97507 3.2125C4.97507 4.69283 6.16159 5.91325 7.67583 5.91325Z"/>
-                </g>
               </g>
             </g>
-          </template>
+          </g>
+        </template>
 
           <!-- Apple-style Unified Add Pill (Left Rail) -->
           <g class="anim-row" :style="getMainAddPillStyle('left', seg, i)">
-            <rect :x="(i !== layout.leftSegments.length - 1 && activeExpandedPill === ('left-' + segments.indexOf(seg))) ? (layout.leftX - 96) : (layout.leftX - 82)" y="-14" :width="(i !== layout.leftSegments.length - 1 && activeExpandedPill === ('left-' + segments.indexOf(seg))) ? 78 : 64" height="28" rx="14"
+            <rect :x="(!isPillSinglePlus('left', seg, i) && activeExpandedPill === ('left-' + segments.indexOf(seg))) ? (layout.leftX - 96) : (layout.leftX - 82)" y="-14" :width="(!isPillSinglePlus('left', seg, i) && activeExpandedPill === ('left-' + segments.indexOf(seg))) ? 78 : 64" height="28" rx="14"
                   fill="#ffffff" stroke="#9ca3af" stroke-width="1.5"
                   style="box-shadow: 0 1px 2px rgba(0,0,0,0.05); transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), x 0.3s cubic-bezier(0.4, 0, 0.2, 1);" />
             
-            <!-- COLLAPSED / TURNAROUND: Plus Icon -->
-            <g v-if="i === layout.leftSegments.length - 1 || activeExpandedPill !== ('left-' + segments.indexOf(seg))" style="cursor:pointer;" title="Додати контрольну точку" @click.stop="i === layout.leftSegments.length - 1 ? handleAddNode('left', segments.indexOf(seg), 'before') : togglePillExpand('left-' + segments.indexOf(seg))">
+            <!-- COLLAPSED / SINGLE PLUS: Plus Icon -->
+            <g v-if="isPillSinglePlus('left', seg, i) || activeExpandedPill !== ('left-' + segments.indexOf(seg))" style="cursor:pointer;" title="Додати контрольну точку" @click.stop="isPillSinglePlus('left', seg, i) ? handleAddNode('left', segments.indexOf(seg), 'before') : togglePillExpand('left-' + segments.indexOf(seg))">
               <rect :x="layout.leftX - 82" y="-14" width="32" height="28" fill="transparent" rx="14"/>
               <g :transform="'translate(' + (layout.leftX - 71.3) + ', -5.3)'" fill="#4b5563">
                 <path transform="scale(0.7)" d="M1.00195 8.36719H6.36328V13.7285C6.36328 14.2734 6.81152 14.7305 7.36523 14.7305C7.91895 14.7305 8.36719 14.2734 8.36719 13.7285V8.36719H13.7285C14.2734 8.36719 14.7305 7.91895 14.7305 7.36523C14.7305 6.81152 14.2734 6.36328 13.7285 6.36328H8.36719V1.00195C8.36719 0.457031 7.91895 0 7.36523 0C6.81152 0 6.36328 0.457031 6.36328 1.00195V6.36328H1.00195C0.457031 6.36328 0 6.81152 0 7.36523C0 7.91895 0.457031 8.36719 1.00195 8.36719Z" />
@@ -679,12 +641,12 @@
               </g>
               <g class="anim-row"
                  :style="{ opacity: (editable && !localBranchMode) ? 1 : 0, pointerEvents: (editable && !localBranchMode) ? 'auto' : 'none', transition: 'opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1)', transform: 'translate(' + (layout.leftX - getBranchDx(br) - 16) + 'px, ' + getBranchAddStopY(br, secIdx, i, false) + 'px)' }">
-                <rect :x="activeExpandedPill === ('lbr-' + br.id + '-' + secIdx) ? -96 : -82" y="-14" :width="activeExpandedPill === ('lbr-' + br.id + '-' + secIdx) ? 78 : 64" height="28" rx="14"
+                <rect :x="(!isBranchSecSinglePlus(br, secIdx) && activeExpandedPill === ('lbr-' + br.id + '-' + secIdx)) ? -96 : -82" y="-14" :width="(!isBranchSecSinglePlus(br, secIdx) && activeExpandedPill === ('lbr-' + br.id + '-' + secIdx)) ? 78 : 64" height="28" rx="14"
                       fill="#ffffff" stroke="#9ca3af" stroke-width="1.5"
                       style="box-shadow: 0 1px 2px rgba(0,0,0,0.05); transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), x 0.3s cubic-bezier(0.4, 0, 0.2, 1);" />
                 
-                <!-- COLLAPSED: Plus Icon to Expand -->
-                <g v-if="activeExpandedPill !== ('lbr-' + br.id + '-' + secIdx)" style="cursor:pointer;" title="Додати контрольну точку" @click.stop="togglePillExpand('lbr-' + br.id + '-' + secIdx)">
+                <!-- COLLAPSED / SINGLE PLUS: Plus Icon to Expand or Add Node directly -->
+                <g v-if="isBranchSecSinglePlus(br, secIdx) || activeExpandedPill !== ('lbr-' + br.id + '-' + secIdx)" style="cursor:pointer;" title="Додати контрольну точку" @click.stop="isBranchSecSinglePlus(br, secIdx) ? handleAddBranchNode(br.id, secIdx - 1, 'before') : togglePillExpand('lbr-' + br.id + '-' + secIdx)">
                   <rect :x="-82" y="-14" width="32" height="28" fill="transparent" rx="14"/>
                   <g transform="translate(-71.3, -5.3)" fill="#4b5563">
                     <path transform="scale(0.7)" d="M1.00195 8.36719H6.36328V13.7285C6.36328 14.2734 6.81152 14.7305 7.36523 14.7305C7.91895 14.7305 8.36719 14.2734 8.36719 13.7285V8.36719H13.7285C14.2734 8.36719 14.7305 7.91895 14.7305 7.36523C14.7305 6.81152 14.2734 6.36328 13.7285 6.36328H8.36719V1.00195C8.36719 0.457031 7.91895 0 7.36523 0C6.81152 0 6.36328 0.457031 6.36328 1.00195V6.36328H1.00195C0.457031 6.36328 0 6.81152 0 7.36523C0 7.91895 0.457031 8.36719 1.00195 8.36719Z" />
@@ -983,6 +945,11 @@ function getBranchTargetSegIdx(b, allSegments) {
     const sIdx = segs.findIndex(s => String(s.nextNodeId) === String(b.targetNodeId));
     if (sIdx !== -1) return sIdx;
   }
+  if (allSegments && b.segIdx !== undefined && segments.value && segments.value[b.segIdx]) {
+    const pId = segments.value[b.segIdx].id;
+    const idx = allSegments.findIndex(s => String(s.id) === String(pId));
+    if (idx !== -1) return idx;
+  }
   return b.segIdx ?? 0;
 }
 
@@ -993,10 +960,10 @@ function getBypassedBranchesForSeg(seg) {
     if (!b || !b.finished || b.parentBranchId) return false;
     if (b.targetType === 'node' || b.targetType === 'bottom_arc') return false;
     
-    const startSegIdx = b.segIdx ?? 0;
     const targetSegIdx = getBranchTargetSegIdx(b, segments.value);
     
-    return (sIdx >= startSegIdx && sIdx <= targetSegIdx);
+    // The pre-merge bypassed pill (single plus) is ONLY for the final segment right before the reconnection!
+    return (sIdx === targetSegIdx);
   });
 }
 
@@ -1022,10 +989,13 @@ function getBypassedTopPillStyle(br, i, isRight) {
   if (seg && br.targetStopId && seg.stops) {
     mergeIdx = seg.stops.findIndex(st => String(st.id) === String(br.targetStopId));
   }
+  if (mergeIdx === -1) {
+    mergeIdx = (!br.targetStopId && seg && seg.stops) ? seg.stops.length : 0;
+  }
 
   const hasBranchStart = (branches.value || []).some(b => b.segIdx === segments.value.indexOf(seg));
   const offset = hasBranchStart ? 64 : 32;
-  const preStopsCount = mergeIdx !== -1 ? mergeIdx : (seg && seg.stops ? seg.stops.length : 0);
+  const preStopsCount = mergeIdx;
   const y = isRight 
     ? (startY + offset + preStopsCount * 32) 
     : (startY - offset - preStopsCount * 32);
@@ -1036,26 +1006,27 @@ function getBypassedTopPillStyle(br, i, isRight) {
 }
 
 function shouldShowMainAddPill(side, segIndex) {
-  const segs = side === 'right' ? layout.value?.rightSegments : layout.value?.leftSegments;
-  if (!segs || !segs[segIndex]) return true;
-  
-  const seg = segs[segIndex];
-  const actualIdx = segments.value.indexOf(seg);
-  const brs = getBypassedBranchesForSeg(seg);
-  const bypassBr = brs.find(b => b && b.finished && b.bypassedMainState === 'add_pills');
-  if (bypassBr) {
-    const targetSegIdx = getBranchTargetSegIdx(bypassBr, segments.value);
-    if (actualIdx < targetSegIdx) {
-      return false;
-    }
-    if (actualIdx === targetSegIdx) {
-      if (!bypassBr.targetStopId) return false;
-      const mergeIdx = seg.stops ? seg.stops.findIndex(st => String(st.id) === String(bypassBr.targetStopId)) : -1;
-      const postMergeStops = mergeIdx !== -1 ? (seg.stops.length - 1 - mergeIdx) : 0;
-      if (postMergeStops === 0) return false;
-    }
-  }
   return true;
+}
+
+function isBranchSecSinglePlus(br, secIdx) {
+  if (!br) return true;
+  // All intermediate sections on the branch have options (← ↩).
+  // Only the last section before reconnecting/ending has a single plus (+).
+  const isLastSection = secIdx === (getBranchNodesLength(br) + 1);
+  return isLastSection;
+}
+
+function isPillSinglePlus(side, seg, i) {
+  if (!seg || !layout.value) return true;
+  const isRight = side === 'right';
+  const segs = isRight ? layout.value.rightSegments : layout.value.leftSegments;
+  if (!segs || segs.length === 0) return true;
+  
+  // 1. Last segment on this rail (before turnaround cap)
+  if (i === segs.length - 1) return true;
+
+  return false;
 }
 
 
@@ -1087,11 +1058,7 @@ const firstNode = computed(() => {
   return nodes.value.find(n => !n.side || n.side === 'top') || nodes.value[0] || null;
 });
 const lastNode = computed(() => {
-  const candidates = nodes.value.filter(n => !n.side || n.side === 'bottom');
-  if (candidates.length > 1) {
-    return candidates[1];
-  }
-  return null;
+  return nodes.value.find(n => n.side === 'bottom') || nodes.value.filter(n => !n.side)[1] || null;
 });
 const controlNodes = computed(() => nodes.value.filter(n => (n.side === 'left' || n.side === 'right') && n.type !== 'virtual'));
 
@@ -1108,70 +1075,66 @@ const leftAddNodeY = computed(() => {
 });
 
 const nodeTravelTimes = computed(() => {
-  if (!layout.value) return {};
+  if (!layout.value || !props.routeData?.nodes?.length) return {};
   const times = {};
-  let time = 0;
   const nodeMap = new Map(props.routeData.nodes.map(n => [String(n.id), n]));
-  
-  // Find the exact first terminus in traversal order
-  let firstTerminusId = null;
-  const termNode = props.routeData.nodes.find(n => n.isTerminus);
-  if (termNode) {
-    firstTerminusId = termNode.id;
-  } else if (firstNode.value) {
-    firstTerminusId = firstNode.value.id;
-  }
-  
-  // Forward trip (right rail)
-  layout.value.rightSegments.forEach((seg, i) => {
-    const nodeId = layout.value.rightNodes[i]?.id;
-    if (nodeId) {
-      times[nodeId] = time;
-      const node = nodeMap.get(String(nodeId));
-      if (node && node.isTerminus && String(node.id) !== String(firstTerminusId)) {
-        time += Number(node.waitMin || 0);
-      }
+  const segMapById = new Map((props.routeData.segments || []).map(s => [String(s.id), s]));
+  const segMapByFromNode = new Map((props.routeData.segments || []).map(s => [String(s.fromNodeId), s]));
+
+  // Find start node (top terminus)
+  const startNode = firstNode.value || props.routeData.nodes.find(n => !n.side || n.side === 'top') || props.routeData.nodes[0];
+  if (!startNode) return {};
+
+  const firstTerminusId = startNode.id;
+  let currNode = startNode;
+  let time = 0;
+  times[currNode.id] = 0;
+
+  const visited = new Set();
+  while (currNode && !visited.has(String(currNode.id))) {
+    visited.add(String(currNode.id));
+
+    // If leaving a non-start terminus, add its wait time
+    if (currNode.isTerminus && String(currNode.id) !== String(firstTerminusId)) {
+      time += Number(currNode.waitMin || 0);
     }
+
+    const seg = currNode.nextSegId 
+      ? (segMapById.get(String(currNode.nextSegId)) || segMapByFromNode.get(String(currNode.id)))
+      : segMapByFromNode.get(String(currNode.id));
+    if (!seg) break;
+
     time += Number(seg.travelTime || 0);
-  });
-  
-  // Bottom terminus
-  const bottomNodeId = layout.value.rightNodes[layout.value.rightNodes.length - 1]?.id;
-  if (bottomNodeId) {
-    times[bottomNodeId] = time;
-    const botNode = nodeMap.get(String(bottomNodeId));
-    if (botNode && botNode.isTerminus && String(botNode.id) !== String(firstTerminusId)) {
-      time += Number(botNode.waitMin || 0);
+
+    const nextNode = seg.nextNodeId ? nodeMap.get(String(seg.nextNodeId)) : null;
+    if (!nextNode) break;
+
+    if (String(nextNode.id) === String(firstTerminusId)) {
+      // Returned back to the start terminus! Loop complete!
+      break;
     }
+
+    times[nextNode.id] = time;
+    currNode = nextNode;
   }
-  
-  // Return trip (left rail, from bottom to top)
-  for (let i = layout.value.leftSegments.length - 1; i >= 0; i--) {
-    time += Number(layout.value.leftSegments[i].travelTime || 0);
-    const nodeId = layout.value.leftNodes[i]?.id;
-    if (nodeId && i > 0) { // i=0 is the top node which is already processed initially
-      times[nodeId] = time;
-      const node = nodeMap.get(String(nodeId));
-      if (node && node.isTerminus && String(node.id) !== String(firstTerminusId)) {
-        time += Number(node.waitMin || 0);
-      }
-    }
-  }
+
   const totalLoopTime = time;
-  const shiftTime = firstTerminusId && times[firstTerminusId] !== undefined ? times[firstTerminusId] : 0;
-  
   const formattedTimes = {};
   for (let key in times) {
-    let t = times[key] - shiftTime;
-    if (t < 0) t += totalLoopTime;
-    
     if (String(key) === String(firstTerminusId)) {
       formattedTimes[key] = totalLoopTime + ' / 0';
     } else {
-      formattedTimes[key] = String(t);
+      formattedTimes[key] = String(times[key]);
     }
   }
-  
+
+  // Fallback for any unvisited nodes
+  for (let n of props.routeData.nodes) {
+    if (formattedTimes[n.id] === undefined) {
+      formattedTimes[n.id] = '0';
+    }
+  }
+
   return formattedTimes;
 });
 
@@ -1417,25 +1380,32 @@ function getBranchEndpointY(br, i, isRight) {
 }
 
 function getBranchDx(br) {
-  if (!br || !br.finished) return 96;
+  if (!br) return 96;
   if (br.targetType && br.targetType !== 'current') return 192;
   
   const sIdx = br.segIdx ?? 0;
   const allSegs = props.routeData?.segments || [];
-  const targetSegIdx = getBranchTargetSegIdx(br, allSegs);
+  const targetSegIdx = br.finished ? getBranchTargetSegIdx(br, allSegs) : sIdx;
   
   let totalStopsInside = 0;
-  for (let k = sIdx; k <= targetSegIdx; k++) {
+  const startK = Math.min(sIdx, targetSegIdx);
+  const endK = Math.max(sIdx, targetSegIdx);
+  for (let k = startK; k <= endK; k++) {
     const seg = allSegs[k];
     if (!seg || !seg.stops) continue;
-    if (k === targetSegIdx && br.targetStopId) {
-      const mIdx = seg.stops.findIndex(st => String(st.id) === String(br.targetStopId));
-      totalStopsInside += (mIdx !== -1 ? mIdx : seg.stops.length);
-    } else {
+    if (k === targetSegIdx) {
+      if (br.targetStopId) {
+        const mIdx = seg.stops.findIndex(st => String(st.id) === String(br.targetStopId));
+        totalStopsInside += (mIdx !== -1 ? mIdx : seg.stops.length);
+      } else {
+        totalStopsInside += seg.stops.length;
+      }
+    } else if (k < targetSegIdx) {
       totalStopsInside += seg.stops.length;
     }
   }
-  return totalStopsInside > 0 ? 192 : 96;
+  const hasBranchStops = (br.sections || []).some(s => s?.stops && s.stops.length > 0);
+  return (totalStopsInside > 0 || hasBranchStops) ? 192 : 96;
 }
 
 function getRightBranchFinishedPath(br, i) {
@@ -1452,17 +1422,23 @@ function getRightBranchFinishedPath(br, i) {
   let mergeY = minTurnY;
   let isNodeTarget = false;
   let targetNodeY = 0;
-  if (br.targetStopId) {
-     const targetRIdx = l.rightSegments.findIndex(s => s.stops && s.stops.some(st => String(st.id) === String(br.targetStopId)));
+  if (br.targetStopId || (!br.targetType || br.targetType === 'current')) {
+     const targetRIdx = getBranchTargetSegIdx(br, l.rightSegments);
      if (targetRIdx !== -1) {
         const targetSeg = l.rightSegments[targetRIdx];
         const actualSegIdx = l.segments.indexOf(targetSeg);
-        const mergeIdx = targetSeg.stops.findIndex(st => String(st.id) === String(br.targetStopId));
+        let mergeIdx = -1;
+        if (br.targetStopId && targetSeg.stops) {
+          mergeIdx = targetSeg.stops.findIndex(st => String(st.id) === String(br.targetStopId));
+        }
+        if (mergeIdx === -1) {
+          mergeIdx = (!br.targetStopId && targetSeg.stops) ? targetSeg.stops.length : 0;
+        }
         const topY = l.rightNodeY[targetRIdx];
         const isSameSeg = (targetRIdx === rSegIdx);
         const hasBranchStart = (branches.value || []).some(b => b.segIdx === actualSegIdx);
         const topOffset = hasBranchStart ? 64 : 32;
-        const preMergeMainH = topOffset + (mergeIdx + 1) * 32;
+        const preMergeMainH = topOffset + (mergeIdx > 0 ? mergeIdx * 32 : 0) + 32;
         const brH = l.getBranchRequiredHeight(br);
         const mergeOffset = isSameSeg ? Math.max(brH, preMergeMainH) : Math.max(startY + brH - topY, preMergeMainH);
         mergeY = topY + mergeOffset;
@@ -1483,13 +1459,13 @@ function getRightBranchFinishedPath(br, i) {
      const targetSegIdx = getBranchTargetSegIdx(br, l.segments);
      const targetSeg = l.segments[targetSegIdx];
      const targetRIdx = targetSeg ? l.rightSegments.findIndex(s => String(s.id) === String(targetSeg.id)) : rSegIdx;
-     if (targetRIdx !== -1 && targetRIdx !== rSegIdx && l.rightNodeY[targetRIdx] !== undefined) {
+     if (targetRIdx !== -1 && l.rightNodeY[targetRIdx] !== undefined) {
         const topY = l.rightNodeY[targetRIdx];
         const hasBranchStart = (branches.value || []).some(b => b.segIdx === targetSegIdx);
         const topOffset = hasBranchStart ? 64 : 32;
-        const preMergeMainH = topOffset + (targetSeg.stops ? targetSeg.stops.length * 32 : 0);
+        const preMergeMainH = topOffset + 32;
         const brH = l.getBranchRequiredHeight(br);
-        const mergeOffset = Math.max(startY + brH - topY, preMergeMainH);
+        const mergeOffset = (targetRIdx === rSegIdx) ? Math.max(brH, preMergeMainH) : Math.max(startY + brH - topY, preMergeMainH);
         mergeY = topY + mergeOffset;
      } else {
         mergeY = minTurnY;
@@ -1538,17 +1514,23 @@ function getLeftBranchFinishedPath(br, i) {
   let mergeY = minTurnY;
   let isNodeTarget = false;
   let targetNodeY = 0;
-  if (br.targetStopId) {
-    const targetLIdx = l.leftSegments.findIndex(s => s.stops && s.stops.some(st => String(st.id) === String(br.targetStopId)));
+  if (br.targetStopId || (!br.targetType || br.targetType === 'current')) {
+    const targetLIdx = getBranchTargetSegIdx(br, l.leftSegments);
     if (targetLIdx !== -1) {
       const targetSeg = l.leftSegments[targetLIdx];
       const actualSegIdx = l.segments.indexOf(targetSeg);
-      const mergeIdx = targetSeg.stops.findIndex(st => String(st.id) === String(br.targetStopId));
+      let mergeIdx = -1;
+      if (br.targetStopId && targetSeg.stops) {
+        mergeIdx = targetSeg.stops.findIndex(st => String(st.id) === String(br.targetStopId));
+      }
+      if (mergeIdx === -1) {
+        mergeIdx = (!br.targetStopId && targetSeg.stops) ? targetSeg.stops.length : 0;
+      }
       const botY = l.leftNodeY[targetLIdx + 1];
       const isSameSeg = (targetLIdx === lSegIdx);
       const hasBranchStart = (branches.value || []).some(b => b.segIdx === actualSegIdx);
       const bottomOffset = hasBranchStart ? 64 : 32;
-      const preMergeMainH = bottomOffset + (mergeIdx + 1) * 32;
+      const preMergeMainH = bottomOffset + (mergeIdx > 0 ? mergeIdx * 32 : 0) + 32;
       const brH = l.getBranchRequiredHeight(br);
       const mergeOffset = isSameSeg ? Math.max(brH, preMergeMainH) : Math.max(botY - (startY - brH), preMergeMainH);
       mergeY = botY - mergeOffset;
@@ -1569,13 +1551,13 @@ function getLeftBranchFinishedPath(br, i) {
      const targetSegIdx = getBranchTargetSegIdx(br, l.segments);
      const targetSeg = l.segments[targetSegIdx];
      const targetLIdx = targetSeg ? l.leftSegments.findIndex(s => String(s.id) === String(targetSeg.id)) : lSegIdx;
-     if (targetLIdx !== -1 && targetLIdx !== lSegIdx && l.leftNodeY[targetLIdx + 1] !== undefined) {
+     if (targetLIdx !== -1 && l.leftNodeY[targetLIdx + 1] !== undefined) {
         const botY = l.leftNodeY[targetLIdx + 1];
         const hasBranchStart = (branches.value || []).some(b => b.segIdx === targetSegIdx);
         const bottomOffset = hasBranchStart ? 64 : 32;
-        const preMergeMainH = bottomOffset + (targetSeg.stops ? targetSeg.stops.length * 32 : 0);
+        const preMergeMainH = bottomOffset + 32;
         const brH = l.getBranchRequiredHeight(br);
-        const mergeOffset = Math.max(botY - (startY - brH), preMergeMainH);
+        const mergeOffset = (targetLIdx === lSegIdx) ? Math.max(brH, preMergeMainH) : Math.max(botY - (startY - brH), preMergeMainH);
         mergeY = botY - mergeOffset;
      } else {
         mergeY = minTurnY;
@@ -1745,6 +1727,9 @@ const isDragging = ref(false);
 let _px = 0, _py = 0, _vx0 = 0, _vy0 = 0;
 
 function onMouseDown(e) {
+  if (document.activeElement && typeof document.activeElement.blur === 'function' && document.activeElement !== document.body) {
+    document.activeElement.blur();
+  }
   if (props.viewBoxOverride) return;
   if (e.button === 1 || e.button === 0) {
     if (zoomAnimFrame) cancelAnimationFrame(zoomAnimFrame);

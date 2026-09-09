@@ -249,18 +249,8 @@ export function traverseGraph(graph) {
       }
 
       if (lastBranchStop) {
-        let targetNextStopId = br.targetStopId || null;
-        if (!targetNextStopId && parentSeg && parentSeg.firstStopId) {
-          targetNextStopId = parentSeg.firstStopId;
-        } else if (!targetNextStopId && br.targetNodeId) {
-          const targetSeg = Object.values(graph.segments).find(s => s.nextNodeId === br.targetNodeId);
-          if (targetSeg && targetSeg.firstStopId) {
-            targetNextStopId = targetSeg.firstStopId;
-          }
-        }
-        if (targetNextStopId) {
-          lastBranchStop.nextStopId = targetNextStopId;
-        }
+        let targetNextStopId = (br.targetType !== 'node' && br.targetStopId) ? br.targetStopId : null;
+        lastBranchStop.nextStopId = targetNextStopId;
       }
 
       result.branches.push(br);
@@ -324,8 +314,20 @@ export function addControlNodeGraph(graph, targetSegId, posMode = 'before', side
     // Find the branch that bypasses this segment
     const brNodeId = Object.keys(graph.nodes).find(nId => {
        const n = graph.nodes[nId];
-       return n.altSegId && (n.branchConfig?.bypassedMainState === 'add_pills' || n.branchConfig?.finished) &&
-         (graph.segments[n.nextSegId]?.id === targetSegId || (graph.segments[targetSegId] && checkStopInSeg(graph, targetSegId, n.branchConfig?.targetStopId)));
+       if (!n.altSegId || (!n.branchConfig?.finished && n.branchConfig?.bypassedMainState !== 'add_pills')) return false;
+       if (graph.segments[n.nextSegId]?.id === targetSegId) return true;
+       if (graph.segments[targetSegId] && checkStopInSeg(graph, targetSegId, n.branchConfig?.targetStopId)) return true;
+       let currNodeId = n.id;
+       const visited = new Set();
+       while (currNodeId && !visited.has(currNodeId)) {
+         visited.add(currNodeId);
+         const segId = graph.nodes[currNodeId]?.nextSegId;
+         if (segId === targetSegId) return true;
+         const seg = graph.segments[segId];
+         if (!seg || (n.branchConfig?.targetNodeId && String(seg.nextNodeId) === String(n.branchConfig.targetNodeId))) break;
+         currNodeId = seg.nextNodeId;
+       }
+       return false;
     });
     
     let targetStopId = null;
@@ -378,6 +380,9 @@ export function addControlNodeGraph(graph, targetSegId, posMode = 'before', side
     oldSeg.nextNodeId = newNodeId;
 
     if (brNode && brNode.branchConfig) {
+      if (isTargetInOldSeg && targetStopId) {
+        brNode.branchConfig.targetStopId = targetStopId;
+      }
       brNode.branchConfig.targetNodeId = newSeg.nextNodeId;
     }
   } else {
@@ -468,6 +473,9 @@ export function addStopGraph(graph, segId, side, insertIdx = -1) {
       }
     }
   }
+
+
+  return newStop.id;
 }
 
 export function removeStopGraph(graph, segId, stopId) {
@@ -500,7 +508,7 @@ export function removeStopGraph(graph, segId, stopId) {
     if (n.branchConfig && String(n.branchConfig.targetStopId) === String(stopId)) {
       n.branchConfig.targetStopId = nextStopId || null;
       if (!nextStopId) {
-        n.branchConfig.targetType = 'node';
+        n.branchConfig.targetType = 'current';
         n.branchConfig.targetNodeId = seg.nextNodeId;
       }
     }
@@ -610,19 +618,46 @@ export function addBranchNodeGraph(graph, brStartNodeId, sectionIdx = 0, posMode
     isBranchNode: true
   };
 
-  graph.segments[brSegId] = {
-    id: brSegId,
-    isBranch: true,
-    travelTime: 5,
-    interval: targetSeg.interval,
-    intervalMax: targetSeg.intervalMax,
-    side: targetSeg.side,
-    nextNodeId: targetSeg.nextNodeId,
-    firstStopId: null
-  };
+  const endNodeId = targetSeg.nextNodeId;
+  const endNode = endNodeId ? graph.nodes[endNodeId] : null;
 
-  graph.nodes[brNodeId].nextSegId = brSegId;
-  targetSeg.nextNodeId = brNodeId;
+  if (posMode === 'after' && endNode && endNode.isBranchNode && endNode.nextSegId && graph.segments[endNode.nextSegId]) {
+    // Add after endNode (intermediate branch node)
+    const segAfter = graph.segments[endNode.nextSegId];
+    const newSeg = {
+      id: brSegId,
+      isBranch: true,
+      travelTime: Math.max(1, Math.floor(segAfter.travelTime / 2)),
+      interval: segAfter.interval,
+      intervalMax: segAfter.intervalMax,
+      side: segAfter.side,
+      nextNodeId: segAfter.nextNodeId,
+      firstStopId: segAfter.firstStopId
+    };
+    graph.segments[brSegId] = newSeg;
+    graph.nodes[brNodeId].nextSegId = brSegId;
+
+    // segAfter becomes empty between endNode and brNodeId
+    segAfter.travelTime = Math.max(1, segAfter.travelTime - Math.floor(segAfter.travelTime / 2));
+    segAfter.nextNodeId = brNodeId;
+    segAfter.firstStopId = null;
+  } else {
+    // posMode === 'before' OR endNode is not a branch node (e.g. at branch end)
+    // Insert before endNode of targetSeg
+    graph.segments[brSegId] = {
+      id: brSegId,
+      isBranch: true,
+      travelTime: 5,
+      interval: targetSeg.interval,
+      intervalMax: targetSeg.intervalMax,
+      side: targetSeg.side,
+      nextNodeId: targetSeg.nextNodeId,
+      firstStopId: null
+    };
+
+    graph.nodes[brNodeId].nextSegId = brSegId;
+    targetSeg.nextNodeId = brNodeId;
+  }
 
   return brNodeId;
 }
