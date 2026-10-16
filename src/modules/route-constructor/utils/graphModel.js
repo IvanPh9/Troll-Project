@@ -108,7 +108,7 @@ export function migrateToGraph(nodesArr, segmentsArr, branchesArr) {
       const toNodeId = brNodes[idx] ? brNodes[idx].id : (br.targetNodeId || graph.segments[parentSeg.id].nextNodeId);
       
       graph.segments[segId] = { 
-        id: segId, isBranch: true, travelTime: 5, interval: parentSeg.interval,
+        id: segId, isBranch: true, travelTime: 5, interval: parentSeg.interval || '20', intervalMax: parentSeg.intervalMax || '25',
         side: parentSeg.side, nextNodeId: toNodeId, firstStopId 
       };
 
@@ -214,16 +214,27 @@ export function traverseGraph(graph) {
       };
       
       let currentAltSegId = node.altSegId;
-      while (currentAltSegId) {
+      const visitedAltSegs = new Set();
+      while (currentAltSegId && !visitedAltSegs.has(currentAltSegId)) {
+        visitedAltSegs.add(currentAltSegId);
         const altSeg = graph.segments[currentAltSegId];
         if (!altSeg) break;
         
         const stops = [];
         let stopId = altSeg.firstStopId;
-        while (stopId) {
+        const visitedStops = new Set();
+        const targetStopId = node.branchConfig?.targetStopId;
+
+        while (stopId && !visitedStops.has(stopId)) {
+          if (targetStopId && String(stopId) === String(targetStopId)) {
+            break;
+          }
+          visitedStops.add(stopId);
           const st = graph.stops[stopId];
-          if (st) { stops.push({ ...st }); stopId = st.nextStopId; } 
-          else break;
+          if (st) {
+            stops.push({ ...st });
+            stopId = st.nextStopId;
+          } else break;
         }
         
         br.sections.push({ ...altSeg, stops });
@@ -233,7 +244,7 @@ export function traverseGraph(graph) {
           br.nodes.push({ ...nextN });
           currentAltSegId = nextN.nextSegId;
         } else {
-          br.targetNodeId = altSeg.nextNodeId || (parentSeg ? parentSeg.nextNodeId : null);
+          br.targetNodeId = node.branchConfig?.targetNodeId || altSeg.nextNodeId || (parentSeg ? parentSeg.nextNodeId : null);
           currentAltSegId = null;
         }
       }
@@ -272,13 +283,21 @@ function checkStopInSeg(graph, segId, stopId) {
   return false;
 }
 
-// 3. Graph Mutations (CRUD)
-export function addControlNodeGraph(graph, targetSegId, posMode = 'before', side = 'right') {
+function getUniqueId(collection, prefix = '') {
+  let id = prefix ? `${prefix}_${Date.now()}` : Date.now();
+  let counter = 1;
+  while (collection && collection[id]) {
+    id = prefix ? `${prefix}_${Date.now()}_${counter++}` : (Date.now() + counter++);
+  }
+  return id;
+}
+
+export function addControlNodeGraph(graph, targetSegId, posMode = 'before', side = 'right', insertIdx = -1) {
   const oldSeg = graph.segments[targetSegId];
   if (!oldSeg) return null;
 
-  const newNodeId = Date.now();
-  const newSegId = Date.now() + 1;
+  const newNodeId = getUniqueId(graph.nodes);
+  const newSegId = getUniqueId(graph.segments);
 
   const newNode = {
     id: newNodeId,
@@ -292,7 +311,56 @@ export function addControlNodeGraph(graph, targetSegId, posMode = 'before', side
 
   const half = Math.max(1, Math.floor(oldSeg.travelTime / 2));
 
-  if (posMode === 'before') {
+  // Collect existing stops of oldSeg
+  const segStops = [];
+  let curr = oldSeg.firstStopId;
+  const visited = new Set();
+  while (curr && !visited.has(curr)) {
+    visited.add(curr);
+    segStops.push(curr);
+    curr = graph.stops[curr]?.nextStopId;
+  }
+
+  if (insertIdx !== -1 && insertIdx < segStops.length) {
+    // Explicit insert inside segment stops (e.g. inside bypassed loop)
+    if (insertIdx === 0) {
+      const newSeg = {
+        id: newSegId,
+        travelTime: half,
+        interval: oldSeg.interval,
+        intervalMax: oldSeg.intervalMax,
+        side: oldSeg.side || side,
+        nextNodeId: oldSeg.nextNodeId,
+        firstStopId: oldSeg.firstStopId
+      };
+      graph.segments[newSegId] = newSeg;
+
+      oldSeg.firstStopId = null;
+      oldSeg.travelTime = Math.max(1, oldSeg.travelTime - half);
+      oldSeg.nextNodeId = newNodeId;
+    } else {
+      const splitPrevStopId = segStops[insertIdx - 1];
+      const splitFirstStopId = segStops[insertIdx];
+
+      if (splitPrevStopId && graph.stops[splitPrevStopId]) {
+        graph.stops[splitPrevStopId].nextStopId = null;
+      }
+
+      const newSeg = {
+        id: newSegId,
+        travelTime: half,
+        interval: oldSeg.interval,
+        intervalMax: oldSeg.intervalMax,
+        side: oldSeg.side || side,
+        nextNodeId: oldSeg.nextNodeId,
+        firstStopId: splitFirstStopId
+      };
+      graph.segments[newSegId] = newSeg;
+
+      oldSeg.travelTime = Math.max(1, oldSeg.travelTime - half);
+      oldSeg.nextNodeId = newNodeId;
+    }
+  } else if (posMode === 'before') {
     // FIRST ARROW (posMode === 'before'):
     // Add new control node after existing stops of this segment.
     // oldSeg keeps all existing stops (firstStopId remains untouched) and now ends at newNodeId.
@@ -435,7 +503,8 @@ export function addStopGraph(graph, segId, side, insertIdx = -1) {
   const seg = graph.segments[segId];
   if (!seg) return;
 
-  const newStop = { id: Date.now(), name: 'Нова зупинка', side, nextStopId: null };
+  const newStopId = getUniqueId(graph.stops);
+  const newStop = { id: newStopId, name: 'Нова зупинка', side, nextStopId: null };
   graph.stops[newStop.id] = newStop;
 
   if (insertIdx === 0 || !seg.firstStopId) {
@@ -474,7 +543,6 @@ export function addStopGraph(graph, segId, side, insertIdx = -1) {
     }
   }
 
-
   return newStop.id;
 }
 
@@ -482,25 +550,28 @@ export function removeStopGraph(graph, segId, stopId) {
   const seg = graph.segments[segId];
   if (!seg || !seg.firstStopId) return;
 
-  const nextStopId = graph.stops[stopId]?.nextStopId || null;
+  const stopKey = Object.keys(graph.stops).find(k => String(k) === String(stopId)) || stopId;
+  const nextStopId = graph.stops[stopKey]?.nextStopId || null;
   let prevStopId = null;
 
-  if (seg.firstStopId === stopId) {
+  if (String(seg.firstStopId) === String(stopId)) {
     seg.firstStopId = nextStopId;
   } else {
     let curr = seg.firstStopId;
     let prev = null;
-    while (curr && curr !== stopId) {
+    while (curr && String(curr) !== String(stopId)) {
       prev = curr;
       curr = graph.stops[curr]?.nextStopId;
     }
-    if (curr === stopId && prev) {
+    if (String(curr) === String(stopId) && prev) {
       prevStopId = prev;
-      graph.stops[prev].nextStopId = nextStopId;
+      if (graph.stops[prev]) {
+        graph.stops[prev].nextStopId = nextStopId;
+      }
     }
   }
 
-  delete graph.stops[stopId];
+  delete graph.stops[stopKey];
 
   // Update any branch targets that were pointing to this deleted stop
   // Along movement direction: if nextStopId exists, merge into it; otherwise connect directly to next control node
@@ -551,13 +622,14 @@ export function addBranchGraph(graph, parentSegId) {
   const startNode = Object.values(graph.nodes).find(n => n.nextSegId === parentSegId);
   if (!startNode) return;
 
-  const brSegId = 'br_seg_' + Date.now();
+  const brSegId = getUniqueId(graph.segments, 'br_seg');
 
   graph.segments[brSegId] = {
     id: brSegId,
     isBranch: true,
     travelTime: 5,
-    interval: parentSeg.interval,
+    interval: parentSeg.interval || '20',
+    intervalMax: parentSeg.intervalMax || '25',
     side: parentSeg.side,
     nextNodeId: parentSeg.nextNodeId,
     firstStopId: null
@@ -599,8 +671,8 @@ export function addBranchNodeGraph(graph, brStartNodeId, sectionIdx = 0, posMode
   const targetIdx = Math.max(0, Math.min(sectionIdx, branchSegs.length - 1));
   const targetSeg = branchSegs[targetIdx];
 
-  const brNodeId = 'br_node_' + Date.now();
-  const brSegId = 'br_seg_' + Date.now();
+  const brNodeId = getUniqueId(graph.nodes, 'br_node');
+  const brSegId = getUniqueId(graph.segments, 'br_seg');
 
   const allControls = Object.values(graph.nodes).filter(n => n.type === 'control');
   const maxNum = allControls.reduce((max, n) => {
@@ -715,5 +787,72 @@ export function setBranchConfigGraph(graph, brStartNodeId, config) {
   const startNode = graph.nodes[brStartNodeId];
   if (startNode) {
     startNode.branchConfig = { ...startNode.branchConfig, ...config };
+    if (config.targetNodeId && startNode.altSegId) {
+      let currSegId = startNode.altSegId;
+      while (currSegId) {
+        const seg = graph.segments[currSegId];
+        if (!seg) break;
+        const nextN = graph.nodes[seg.nextNodeId];
+        if (nextN && nextN.isBranchNode && nextN.nextSegId) {
+          currSegId = nextN.nextSegId;
+        } else {
+          seg.nextNodeId = config.targetNodeId;
+          break;
+        }
+      }
+    }
   }
+}
+
+export function renameStopIdGraph(graph, oldStopId, newStopId, newName, extraProps = {}) {
+  if (!graph || !graph.stops) return oldStopId;
+  const oldKey = Object.keys(graph.stops).find(k => String(k) === String(oldStopId));
+  if (!oldKey) return oldStopId;
+
+  const targetId = (newStopId !== undefined && newStopId !== null) ? newStopId : oldKey;
+  const stopObj = graph.stops[oldKey];
+
+  if (newName !== undefined && newName !== null) {
+    stopObj.name = newName;
+  }
+  if (extraProps && typeof extraProps === 'object') {
+    Object.assign(stopObj, extraProps);
+  }
+
+  // If the ID is actually changing
+  if (String(oldKey) !== String(targetId)) {
+    let finalId = targetId;
+    if (graph.stops[finalId] && graph.stops[finalId] !== stopObj) {
+      finalId = `${targetId}_${Date.now().toString().slice(-4)}`;
+    }
+
+    stopObj.id = finalId;
+    graph.stops[finalId] = stopObj;
+    delete graph.stops[oldKey];
+
+    // 1. Update firstStopId on all segments
+    Object.values(graph.segments || {}).forEach(seg => {
+      if (String(seg.firstStopId) === String(oldKey)) {
+        seg.firstStopId = finalId;
+      }
+    });
+
+    // 2. Update nextStopId on all stops
+    Object.values(graph.stops || {}).forEach(st => {
+      if (String(st.nextStopId) === String(oldKey)) {
+        st.nextStopId = finalId;
+      }
+    });
+
+    // 3. Update targetStopId in branchConfig on all nodes
+    Object.values(graph.nodes || {}).forEach(node => {
+      if (node.branchConfig && String(node.branchConfig.targetStopId) === String(oldKey)) {
+        node.branchConfig.targetStopId = finalId;
+      }
+    });
+
+    return finalId;
+  }
+
+  return targetId;
 }

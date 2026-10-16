@@ -13,6 +13,8 @@
  *   DOWN the right rail → around bottom cap (LEFT) → UP the left rail → around top cap (RIGHT)
  */
 
+import { calculateBranchLevels, getBranchDxForLevel, getMaxBranchLevel } from './branchLevelModel.js';
+
 export const OVAL_DEFAULTS = {
   RAIL_HALF : 96,   // half-width between rail centers (3 * 32px grid)
   RAIL_W    :  9,   // stroke-width of rails and caps
@@ -23,6 +25,44 @@ export const OVAL_DEFAULTS = {
   CTRL_R    :  10,  // radius of control node circle
 };
 
+export function splitStopName(name, maxLength = 20) {
+  if (!name || typeof name !== 'string') return [name || ''];
+  const trimmed = name.trim();
+  if (trimmed.length <= maxLength) return [trimmed];
+  
+  const words = trimmed.split(/\s+/);
+  if (words.length <= 1) return [trimmed];
+
+  let bestIdx = 1;
+  let minScore = Infinity;
+
+  for (let i = 1; i < words.length; i++) {
+    const l1 = words.slice(0, i).join(' ');
+    const l2 = words.slice(i).join(' ');
+    const overPenalty = l1.length > maxLength ? (l1.length - maxLength) * 3 : 0;
+    const balanceDiff = Math.abs(l1.length - l2.length);
+    const score = overPenalty + balanceDiff;
+
+    if (score < minScore) {
+      minScore = score;
+      bestIdx = i;
+    }
+  }
+
+  const line1 = words.slice(0, bestIdx).join(' ');
+  const line2 = words.slice(bestIdx).join(' ');
+  return [line1, line2];
+}
+
+export function isStopMultiline(stopOrName) {
+  const name = typeof stopOrName === 'string' ? stopOrName : (stopOrName?.name || '');
+  return splitStopName(name).length > 1;
+}
+
+export function getStopHeight(stopOrName) {
+  return isStopMultiline(stopOrName) ? 64 : 32;
+}
+
 export class OvalLayout {
   constructor(nodes, segments, branches = [], opts = {}) {
     this.nodes = nodes || [];
@@ -30,6 +70,9 @@ export class OvalLayout {
     this.branches = branches || [];
     this.isBranchMode = opts.isBranchMode || false;
     Object.assign(this, OVAL_DEFAULTS, opts);
+
+    // Calculate branch nesting levels (Level 1..N)
+    this._branchLevels = calculateBranchLevels(this.branches, this.segments, this.nodes);
 
     // Pre-compute once at construction time for O(1) property access
     this._rightNodes = this.nodes.filter(n => !n.side || n.side === 'right');
@@ -64,20 +107,25 @@ export class OvalLayout {
   get leftNodes()     { return this._leftNodes; }
   get rightSegments() { return this._rightSegments; }
   get leftSegments()  { return this._leftSegments; }
+  get branchLevels()  { return this._branchLevels; }
+
+  getBranchLevel(b) { return this._branchLevels[b?.id] || 1; }
+  getBranchDx(b) { return getBranchDxForLevel(b, this._branchLevels, this.segments); }
 
   getBranchRequiredHeight(b) {
     const sections = b.sections || [];
     const nodeCount = (b.nodes || []).length;
     const sectionCount = Math.max(nodeCount + 1, 1);
-    let totalStops = 0;
+    let totalStopsHeight = 0;
     for (let si = 0; si < sectionCount; si++) {
-      totalStops += (sections[si]?.stops || []).length;
+      const stops = sections[si]?.stops || [];
+      totalStopsHeight += stops.reduce((acc, st) => acc + getStopHeight(st), 0);
     }
     const isEditable = (this.editable !== false && !this.isBranchMode);
     const pillsHeight = isEditable ? sectionCount * 32 : 0;
     const nodesHeight = nodeCount * 32;
     const finishExtra = !b.finished ? 48 : 0;
-    return Math.max(96, 64 + totalStops * 32 + pillsHeight + nodesHeight + finishExtra);
+    return Math.max(96, 64 + totalStopsHeight + pillsHeight + nodesHeight + finishExtra);
   }
 
   getBranchPadding(segIdx, ignoreFarBranches = false) {
@@ -118,7 +166,7 @@ export class OvalLayout {
       const idx = segs.findIndex(s => s.stops && s.stops.some(st => String(st.id) === String(b.targetStopId)));
       if (idx !== -1) return idx;
     }
-    if (b.targetNodeId && b.targetType !== 'node' && b.targetType !== 'bottom_arc') {
+    if (b.targetNodeId && b.targetType !== 'bottom_arc') {
       const idx = segs.findIndex(s => String(s.nextNodeId) === String(b.targetNodeId));
       if (idx !== -1) return idx;
     }
@@ -130,54 +178,273 @@ export class OvalLayout {
     return b.segIdx ?? 0;
   }
 
-  _getActiveMergeBranch(seg, segIdx) {
-    if (!this.branches) return null;
-    return this.branches.find(b => {
-      if (b.targetType === 'node' || b.targetType === 'bottom_arc') return false;
+  _getActiveMergeBranches(seg, segIdx) {
+    if (!this.branches || !this.branches.length) return [];
+    const actualSegIdx = (segIdx !== undefined) 
+      ? segIdx 
+      : (seg ? this.segments.indexOf(seg) : -1);
+    if (actualSegIdx === -1) return [];
+
+    const matches = this.branches.filter(b => {
+      if (!b || b.targetType === 'bottom_arc') return false;
       const targetSegIdx = this._getBranchTargetSegIdx(b);
-      return targetSegIdx === segIdx;
+      return targetSegIdx === actualSegIdx;
     });
+
+    // Sort by branch level ascending (Level 1 first, Level 2 second, etc.)
+    matches.sort((a, b) => (this.getBranchLevel(a) - this.getBranchLevel(b)));
+    return matches;
+  }
+
+  getSegmentLayout(seg, segIdx, isRight = true) {
+    const globalSegIdx = seg
+      ? this.segments.findIndex(s => String(s.id) === String(seg.id))
+      : ((segIdx !== undefined) ? segIdx : -1);
+    const sideSegments = isRight ? this._rightSegments : this._leftSegments;
+    const sideSegIdx = (seg && sideSegments)
+      ? sideSegments.findIndex(s => String(s.id) === String(seg.id))
+      : ((segIdx !== undefined) ? segIdx : -1);
+    
+    const isBranchMode = !!this.isBranchMode;
+    const hasBranchStart = this.branches && this.branches.some(b => b.segIdx === globalSegIdx);
+    const topOffset = (isBranchMode || hasBranchStart) ? 64 : 32;
+    const bottomOffset = (isBranchMode || hasBranchStart) ? 64 : 32;
+    const isEditable = this.editable !== false && !isBranchMode;
+    const stops = (seg && seg.stops) ? seg.stops : [];
+    
+    const mergeBrs = this._getActiveMergeBranches(seg, globalSegIdx);
+
+    const slotBranches = new Map();
+    for (let slot = 0; slot <= stops.length; slot++) {
+      slotBranches.set(slot, []);
+    }
+
+    for (const br of mergeBrs) {
+      let slot = stops.length;
+      if (br.targetStopId && stops.length > 0) {
+        const sIdx = stops.findIndex(st => String(st.id) === String(br.targetStopId));
+        if (sIdx !== -1) {
+          slot = sIdx;
+        }
+      } else if (!br.finished && br.segIdx === globalSegIdx) {
+        slot = 0;
+      } else if (br.targetType === 'node' || br.targetNodeId) {
+        slot = stops.length;
+      }
+      slotBranches.get(slot).push(br);
+    }
+
+    for (const [slot, brs] of slotBranches.entries()) {
+      brs.sort((a, b) => (this.getBranchLevel(a) - this.getBranchLevel(b)));
+    }
+
+    const layoutResult = {
+      stops: new Map(),
+      merges: new Map(),
+      pills: [],
+      totalHeight: 0
+    };
+
+    if (isRight) {
+      const topY = (this._rightNodeY && sideSegIdx !== -1 && this._rightNodeY[sideSegIdx] !== undefined)
+        ? this._rightNodeY[sideSegIdx]
+        : 0;
+
+      let currentY = topY + topOffset;
+
+      for (let slot = 0; slot <= stops.length; slot++) {
+        const brs = slotBranches.get(slot) || [];
+
+        // 0. Pill BEFORE slot 0 merges (inside the loop between node and first merge)
+        if (slot === 0 && isEditable && brs.some(b => b.finished)) {
+          layoutResult.pills.push({
+            id: `pill-${globalSegIdx}-0-before`,
+            y: currentY,
+            insertIdx: 0,
+            isAfterMerge: false,
+            title: 'Додати зупинку'
+          });
+          currentY += 32;
+        }
+
+        // 1. Merges at this slot
+        if (brs.length > 0) {
+          for (let k = 0; k < brs.length; k++) {
+            const br = brs[k];
+            const brH = this.getBranchRequiredHeight(br);
+            const isSameSeg = (br.segIdx === globalSegIdx);
+            const parentSeg = this.segments[br.segIdx];
+            const brSIdx = parentSeg ? (this._rightSegments ? this._rightSegments.findIndex(s => String(s.id) === String(parentSeg.id)) : br.segIdx) : br.segIdx;
+            const brStartY = (this._rightNodeY && this._rightNodeY[brSIdx] !== undefined) ? this._rightNodeY[brSIdx] : topY;
+
+            let neededY = currentY;
+            if (isSameSeg) {
+              neededY = Math.max(currentY, topY + brH);
+            } else {
+              neededY = Math.max(currentY, brStartY + brH);
+            }
+
+            const mergeY = neededY;
+            layoutResult.merges.set(br.id, {
+              mergeY: mergeY,
+              turnY: mergeY,
+              arrowY: mergeY + 15
+            });
+            currentY = mergeY + 32;
+          }
+        }
+
+        // 2. Stop at this slot
+        if (slot < stops.length) {
+          const st = stops[slot];
+          layoutResult.stops.set(String(st.id), { y: currentY });
+          currentY += getStopHeight(st);
+
+          // If the next slot has a merge, add a pill for this section after this stop (BEFORE the merge)
+          const nextSlotBrs = slotBranches.get(slot + 1) || [];
+          if (isEditable && nextSlotBrs.some(b => b.finished)) {
+            layoutResult.pills.push({
+              id: `pill-${globalSegIdx}-${slot + 1}-before`,
+              y: currentY,
+              insertIdx: slot + 1,
+              isAfterMerge: false,
+              title: 'Додати зупинку'
+            });
+            currentY += 32;
+          }
+        } else if (slot === stops.length) {
+          // 3. End of segment pill (after all stops and node merges)
+          if (isEditable) {
+            const hasNodeMerges = (slotBranches.get(stops.length) || []).some(b => b.finished);
+            layoutResult.pills.push({
+              id: `pill-${globalSegIdx}-${slot}-after`,
+              y: currentY,
+              insertIdx: slot,
+              isAfterMerge: hasNodeMerges,
+              title: 'Додати зупинку'
+            });
+            currentY += 32;
+          }
+        }
+      }
+
+      layoutResult.totalHeight = currentY - topY;
+    } else {
+      const botY = (this._leftNodeY && sideSegIdx !== -1 && this._leftNodeY[sideSegIdx + 1] !== undefined)
+        ? this._leftNodeY[sideSegIdx + 1]
+        : 0;
+
+      let currentY = botY - bottomOffset;
+
+      for (let slot = 0; slot <= stops.length; slot++) {
+        const brs = slotBranches.get(slot) || [];
+
+        // 0. Pill BEFORE slot 0 merges (inside the loop between node and first merge)
+        if (slot === 0 && isEditable && brs.some(b => b.finished)) {
+          layoutResult.pills.push({
+            id: `pill-${globalSegIdx}-0-before`,
+            y: currentY,
+            insertIdx: 0,
+            isAfterMerge: false,
+            title: 'Додати зупинку'
+          });
+          currentY -= 32;
+        }
+
+        // 1. Merges at this slot
+        if (brs.length > 0) {
+          for (let k = 0; k < brs.length; k++) {
+            const br = brs[k];
+            const brH = this.getBranchRequiredHeight(br);
+            const isSameSeg = (br.segIdx === globalSegIdx);
+            const parentSeg = this.segments[br.segIdx];
+            const brSIdx = parentSeg ? (this._leftSegments ? this._leftSegments.findIndex(s => String(s.id) === String(parentSeg.id)) : br.segIdx) : br.segIdx;
+            const brStartY = (this._leftNodeY && this._leftNodeY[brSIdx + 1] !== undefined) ? this._leftNodeY[brSIdx + 1] : botY;
+
+            let neededY = currentY;
+            if (isSameSeg) {
+              neededY = Math.min(currentY, botY - brH);
+            } else {
+              neededY = Math.min(currentY, brStartY - brH);
+            }
+
+            const mergeY = neededY;
+            layoutResult.merges.set(br.id, {
+              mergeY: mergeY,
+              turnY: mergeY,
+              arrowY: mergeY - 15
+            });
+            currentY = mergeY - 32;
+          }
+        }
+
+        // 2. Stop at this slot
+        if (slot < stops.length) {
+          const st = stops[slot];
+          layoutResult.stops.set(String(st.id), { y: currentY });
+          currentY -= getStopHeight(st);
+
+          const nextSlotBrs = slotBranches.get(slot + 1) || [];
+          if (isEditable && nextSlotBrs.some(b => b.finished)) {
+            layoutResult.pills.push({
+              id: `pill-${globalSegIdx}-${slot + 1}-before`,
+              y: currentY,
+              insertIdx: slot + 1,
+              isAfterMerge: false,
+              title: 'Додати зупинку'
+            });
+            currentY -= 32;
+          }
+        } else if (slot === stops.length) {
+          if (isEditable) {
+            const hasNodeMerges = (slotBranches.get(stops.length) || []).some(b => b.finished);
+            layoutResult.pills.push({
+              id: `pill-${globalSegIdx}-${slot}-after`,
+              y: currentY,
+              insertIdx: slot,
+              isAfterMerge: hasNodeMerges,
+              title: 'Додати зупинку'
+            });
+            currentY -= 32;
+          }
+        }
+      }
+
+      layoutResult.totalHeight = botY - currentY;
+    }
+
+    return layoutResult;
+  }
+
+  getBranchMergeY(br, isRight = true) {
+    if (!br) return 0;
+    if (br.targetType === 'bottom_arc') return this.botY;
+
+    const targetSegIdx = this._getBranchTargetSegIdx(br);
+    const targetSeg = this.segments[targetSegIdx];
+    if (!targetSeg) return 0;
+
+    const layout = this.getSegmentLayout(targetSeg, targetSegIdx, isRight);
+    const mergeInfo = layout.merges.get(br.id);
+    return mergeInfo ? mergeInfo.mergeY : (isRight ? 0 : this.botY);
+  }
+
+  getSegmentPills(seg, segIdx, isRight = true) {
+    const actualSegIdx = (segIdx !== undefined) ? segIdx : (seg ? this.segments.indexOf(seg) : -1);
+    const layout = this.getSegmentLayout(seg, actualSegIdx, isRight);
+    return layout.pills;
   }
 
   _segH(seg, isLastSeg, segIdx, ignoreFarBranches = false) {
-    const isBranchMode = !!this.isBranchMode;
-    const isEditable = this.editable !== false && !isBranchMode;
-
-    const hasBranchStart = this.branches && this.branches.some(b => b.segIdx === segIdx);
-    const topOffset = (isBranchMode || hasBranchStart) ? 64 : 32;
-    const stopsCount = (seg && seg.stops) ? seg.stops.length : 0;
-    const pillH = isEditable ? 32 : 0;
-
-    // Check if there is a branch merging into THIS segment
-    const activeBr = this._getActiveMergeBranch(seg, segIdx);
-    if (activeBr) {
-      const isSameSeg = (activeBr.segIdx === segIdx);
-      let mergeIdx = -1;
-      if (activeBr.targetStopId && seg.stops) {
-        mergeIdx = seg.stops.findIndex(st => String(st.id) === String(activeBr.targetStopId));
-      }
-      if (mergeIdx === -1) {
-        mergeIdx = (!activeBr.targetStopId && seg.stops) ? seg.stops.length : 0;
-      }
-      const brH = this.getBranchRequiredHeight(activeBr);
-      const preMergeMainH = topOffset + (mergeIdx > 0 ? mergeIdx * 32 : 0) + 32;
-      const mergeOffset = isSameSeg ? Math.max(brH, preMergeMainH) : preMergeMainH;
-      const postMergeStops = Math.max(0, stopsCount - mergeIdx);
-      const extraBuffer = this.editable !== false ? 64 : 32;
-      return mergeOffset + 32 + postMergeStops * 32 + extraBuffer;
-    }
-
-    // If a branch terminates in the end node of this segment:
-    const nodeTargetBr = this.branches && this.branches.find(b => b.targetType === 'node' && seg && String(seg.nextNodeId) === String(b.targetNodeId));
-    if (nodeTargetBr) {
-      return topOffset + stopsCount * this.STOP_H + 96;
-    }
-
-    return topOffset + stopsCount * this.STOP_H + 32;
+    const isLeft = (seg && seg.side === 'left');
+    const actualSegIdx = (segIdx !== undefined) ? segIdx : (seg ? this.segments.indexOf(seg) : -1);
+    const layout = this.getSegmentLayout(seg, actualSegIdx, !isLeft);
+    return layout.totalHeight;
   }
 
   _computeRightYs(segs) {
     let ys = [this.topY];
+    this._rightNodeY = ys;
     for (let i = 0; i < segs.length; i++) {
       const isLast = (i === segs.length - 1);
       const actualSegIdx = this.segments.findIndex(s => s.id === segs[i].id);
@@ -189,7 +456,7 @@ export class OvalLayout {
     while (changed && iterations++ < 50) {
       changed = false;
       for (let b of this.branches) {
-        if (b.side !== 'right') continue;
+        if (b.side === 'left') continue;
         const parentSeg = this.segments[b.segIdx];
         const sIdx = parentSeg ? this._rightSegments.findIndex(s => String(s.id) === String(parentSeg.id)) : (b.segIdx ?? 0);
         if (sIdx === -1) continue;
@@ -197,51 +464,16 @@ export class OvalLayout {
         const brH = this.getBranchRequiredHeight(b);
         const startY = ys[sIdx];
 
-        if (b.finished && (b.targetStopId || (b.targetType !== 'node' && b.targetType !== 'bottom_arc'))) {
+        if (b.finished && (b.targetStopId || b.targetType !== 'bottom_arc')) {
           const targetSegIdx = this._getBranchTargetSegIdx(b, this._rightSegments);
           if (targetSegIdx !== -1) {
             const targetSeg = this._rightSegments[targetSegIdx];
-            let mergeIdx = -1;
-            if (b.targetStopId && targetSeg.stops) {
-              mergeIdx = targetSeg.stops.findIndex(st => String(st.id) === String(b.targetStopId));
-            }
-            if (mergeIdx === -1) {
-              mergeIdx = (!b.targetStopId && targetSeg.stops) ? targetSeg.stops.length : 0;
-            }
-            const isSameSeg = (targetSegIdx === sIdx);
-            const hasBranchStart = this.branches && this.branches.some(br => br.segIdx === this.segments.findIndex(s => s.id === targetSeg.id));
-            const topOffset = (this.isBranchMode || hasBranchStart) ? 64 : 32;
-            const preMergeMainH = topOffset + (mergeIdx > 0 ? mergeIdx * 32 : 0) + 32;
-            const postMergeStops = Math.max(0, (targetSeg.stops ? targetSeg.stops.length : 0) - mergeIdx);
-            const extraBuffer = this.editable !== false ? 64 : 32;
-
-            if (isSameSeg) {
-              const mergeOffset = Math.max(brH, preMergeMainH);
-              const minSegH = mergeOffset + 32 + postMergeStops * 32 + extraBuffer;
-              if (ys[sIdx + 1] - ys[sIdx] < minSegH) {
-                const diff = minSegH - (ys[sIdx + 1] - ys[sIdx]);
-                for (let k = sIdx + 1; k < ys.length; k++) ys[k] += diff;
-                changed = true;
-              }
-            } else if (targetSegIdx > sIdx) {
-              const mergeOffset = Math.max(startY + brH - ys[targetSegIdx], preMergeMainH);
-              const minSegH = mergeOffset + 32 + postMergeStops * 32 + extraBuffer;
-              if (ys[targetSegIdx + 1] - ys[targetSegIdx] < minSegH) {
-                const diff = minSegH - (ys[targetSegIdx + 1] - ys[targetSegIdx]);
-                for (let k = targetSegIdx + 1; k < ys.length; k++) ys[k] += diff;
-                changed = true;
-              }
-            }
-          }
-        } else if (b.finished && b.targetType === 'node' && b.targetNodeId) {
-          const rightNodeIndex = this._rightNodes.findIndex(n => String(n.id) === String(b.targetNodeId));
-          const targetIdx = rightNodeIndex !== -1 ? rightNodeIndex : -1;
-          if (targetIdx !== -1 && targetIdx > sIdx) {
-            const currentH = ys[targetIdx] - startY;
-            const neededH = brH + 96;
-            if (currentH < neededH) {
-              const diff = neededH - currentH;
-              for (let k = targetIdx; k < ys.length; k++) ys[k] += diff;
+            const actualTargetSegIdx = this.segments.findIndex(s => s.id === targetSeg.id);
+            const minSegH = this._segH(targetSeg, targetSegIdx === this._rightSegments.length - 1, actualTargetSegIdx, true);
+            
+            if (ys[targetSegIdx + 1] - ys[targetSegIdx] < minSegH) {
+              const diff = minSegH - (ys[targetSegIdx + 1] - ys[targetSegIdx]);
+              for (let k = targetSegIdx + 1; k < ys.length; k++) ys[k] += diff;
               changed = true;
             }
           }
@@ -275,6 +507,7 @@ export class OvalLayout {
     const n = segs.length;
     let ys = new Array(n + 1);
     ys[n] = botY;
+    this._leftNodeY = ys;
     for (let i = n - 1; i >= 0; i--) {
       const isLast = (i === n - 1);
       const actualSegIdx = this.segments.findIndex(s => s.id === segs[i].id);
@@ -294,51 +527,16 @@ export class OvalLayout {
         const brH = this.getBranchRequiredHeight(b);
         const startY = ys[sIdx + 1];
 
-        if (b.finished && (b.targetStopId || (b.targetType !== 'node' && b.targetType !== 'bottom_arc'))) {
+        if (b.finished && (b.targetStopId || b.targetType !== 'bottom_arc')) {
           const targetSegIdx = this._getBranchTargetSegIdx(b, this._leftSegments);
           if (targetSegIdx !== -1) {
             const targetSeg = this._leftSegments[targetSegIdx];
-            let mergeIdx = -1;
-            if (b.targetStopId && targetSeg.stops) {
-              mergeIdx = targetSeg.stops.findIndex(st => String(st.id) === String(b.targetStopId));
-            }
-            if (mergeIdx === -1) {
-              mergeIdx = (!b.targetStopId && targetSeg.stops) ? targetSeg.stops.length : 0;
-            }
-            const isSameSeg = (targetSegIdx === sIdx);
-            const hasBranchStart = this.branches && this.branches.some(br => br.segIdx === this.segments.findIndex(s => s.id === targetSeg.id));
-            const bottomOffset = (this.isBranchMode || hasBranchStart) ? 64 : 32;
-            const preMergeMainH = bottomOffset + (mergeIdx > 0 ? mergeIdx * 32 : 0) + 32;
-            const postMergeStops = Math.max(0, (targetSeg.stops ? targetSeg.stops.length : 0) - mergeIdx);
-            const extraBuffer = this.editable !== false ? 64 : 32;
+            const actualTargetSegIdx = this.segments.findIndex(s => s.id === targetSeg.id);
+            const minSegH = this._segH(targetSeg, targetSegIdx === this._leftSegments.length - 1, actualTargetSegIdx, true);
 
-            if (isSameSeg) {
-              const mergeOffset = Math.max(brH, preMergeMainH);
-              const minSegH = mergeOffset + 32 + postMergeStops * 32 + extraBuffer;
-              if (ys[sIdx + 1] - ys[sIdx] < minSegH) {
-                const diff = minSegH - (ys[sIdx + 1] - ys[sIdx]);
-                for (let k = 0; k <= sIdx; k++) ys[k] -= diff;
-                changed = true;
-              }
-            } else if (targetSegIdx < sIdx) {
-              const mergeOffset = Math.max(ys[targetSegIdx + 1] - (startY - brH), preMergeMainH);
-              const minSegH = mergeOffset + 32 + postMergeStops * 32 + extraBuffer;
-              if (ys[targetSegIdx + 1] - ys[targetSegIdx] < minSegH) {
-                const diff = minSegH - (ys[targetSegIdx + 1] - ys[targetSegIdx]);
-                for (let k = 0; k <= targetSegIdx; k++) ys[k] -= diff;
-                changed = true;
-              }
-            }
-          }
-        } else if (b.finished && b.targetType === 'node' && b.targetNodeId) {
-          const leftNodeIndex = this._leftNodes.findIndex(n => String(n.id) === String(b.targetNodeId));
-          const targetIdx = leftNodeIndex !== -1 ? leftNodeIndex : -1;
-          if (targetIdx !== -1 && targetIdx < sIdx) {
-            const currentH = startY - ys[targetIdx];
-            const neededH = brH + 96;
-            if (currentH < neededH) {
-              const diff = neededH - currentH;
-              for (let k = 0; k <= targetIdx; k++) ys[k] -= diff;
+            if (ys[targetSegIdx + 1] - ys[targetSegIdx] < minSegH) {
+              const diff = minSegH - (ys[targetSegIdx + 1] - ys[targetSegIdx]);
+              for (let k = 0; k <= targetSegIdx; k++) ys[k] -= diff;
               changed = true;
             }
           }
@@ -384,58 +582,13 @@ export class OvalLayout {
 
   // Distribute stops properly between top and bot node Ys
   stopY(seg, top, bot, stIdx, isLastSeg, segIdx) {
-    const n = (seg && seg.stops) ? seg.stops.length : 0;
-    if (n === 0) return (top + bot) / 2;
-    const isLeft = seg && seg.side === 'left';
-    const isBranchMode = !!this.isBranchMode;
-
-    const hasBranchStart = this.branches && this.branches.some(b => b.segIdx === segIdx);
-    const topOffset = (isBranchMode || hasBranchStart) ? 64 : 32;
-    const bottomOffset = (isBranchMode || hasBranchStart) ? 64 : 32;
-
-    const activeBr = this._getActiveMergeBranch(seg, segIdx);
-    if (activeBr) {
-      const isSameSeg = (activeBr.segIdx === segIdx);
-      let mergeIdx = -1;
-      if (activeBr.targetStopId && seg.stops) {
-        mergeIdx = seg.stops.findIndex(st => String(st.id) === String(activeBr.targetStopId));
-      }
-      if (mergeIdx === -1) {
-        mergeIdx = (!activeBr.targetStopId && seg.stops) ? seg.stops.length : 0;
-      }
-      const brH = this.getBranchRequiredHeight(activeBr);
-      if (isLeft) {
-        const preMergeMainH = bottomOffset + (mergeIdx > 0 ? mergeIdx * 32 : 0) + 32;
-        const brParentSeg = this.segments[activeBr.segIdx];
-        const brSIdx = brParentSeg ? (this._leftSegments ? this._leftSegments.findIndex(s => String(s.id) === String(brParentSeg.id)) : activeBr.segIdx) : activeBr.segIdx;
-        const brStartY = (this._leftNodeY && this._leftNodeY[brSIdx + 1] !== undefined) ? this._leftNodeY[brSIdx + 1] : bot;
-        const mergeOffset = isSameSeg ? Math.max(brH, preMergeMainH) : Math.max(bot - (brStartY - brH), preMergeMainH);
-        const mergeTargetY = bot - mergeOffset;
-        if (stIdx < mergeIdx) {
-          return bot - bottomOffset - stIdx * 32;
-        } else {
-          return mergeTargetY - 32 - (stIdx - mergeIdx) * 32;
-        }
-      } else {
-        const preMergeMainH = topOffset + (mergeIdx > 0 ? mergeIdx * 32 : 0) + 32;
-        const brParentSeg = this.segments[activeBr.segIdx];
-        const brSIdx = brParentSeg ? (this._rightSegments ? this._rightSegments.findIndex(s => String(s.id) === String(brParentSeg.id)) : activeBr.segIdx) : activeBr.segIdx;
-        const brStartY = (this._rightNodeY && this._rightNodeY[brSIdx] !== undefined) ? this._rightNodeY[brSIdx] : top;
-        const mergeOffset = isSameSeg ? Math.max(brH, preMergeMainH) : Math.max(brStartY + brH - top, preMergeMainH);
-        const mergeTargetY = top + mergeOffset;
-        if (stIdx < mergeIdx) {
-          return top + topOffset + stIdx * 32;
-        } else {
-          return mergeTargetY + 32 + (stIdx - mergeIdx) * 32;
-        }
-      }
-    }
-
-    if (isLeft) {
-      return bot - bottomOffset - stIdx * 32;
-    } else {
-      return top + topOffset + stIdx * 32;
-    }
+    const stops = (seg && seg.stops) ? seg.stops : [];
+    if (!stops[stIdx]) return (top + bot) / 2;
+    const isLeft = (seg && seg.side === 'left');
+    const actualSegIdx = (segIdx !== undefined) ? segIdx : (seg ? this.segments.indexOf(seg) : -1);
+    const layout = this.getSegmentLayout(seg, actualSegIdx, !isLeft);
+    const stopInfo = layout.stops.get(String(stops[stIdx].id));
+    return stopInfo ? stopInfo.y : ((top + bot) / 2);
   }
 
   // Positioning Add Stop & Add Branch buttons
@@ -443,104 +596,37 @@ export class OvalLayout {
     return top + 32;
   }
   getRightAddStopY(seg, top, bot, isLastSeg, segIdx) {
-    const hasBranchStart = this.branches && this.branches.some(b => b.segIdx === segIdx);
-    const isBranchMode = !!this.isBranchMode;
-    const topOffset = (isBranchMode || hasBranchStart) ? 64 : 32;
-    const n = seg.stops ? seg.stops.length : 0;
-
-    const activeBr = this._getActiveMergeBranch(seg, segIdx);
-    if (activeBr) {
-      const isSameSeg = (activeBr.segIdx === segIdx);
-      let mergeIdx = -1;
-      if (activeBr.targetStopId && seg.stops) {
-        mergeIdx = seg.stops.findIndex(st => String(st.id) === String(activeBr.targetStopId));
-      }
-      if (mergeIdx === -1) {
-        mergeIdx = (!activeBr.targetStopId && seg.stops) ? seg.stops.length : 0;
-      }
-      const brH = this.getBranchRequiredHeight(activeBr);
-      const preMergeMainH = topOffset + (mergeIdx > 0 ? mergeIdx * 32 : 0) + 32;
-      const brParentSeg = this.segments[activeBr.segIdx];
-      const brSIdx = brParentSeg ? (this._rightSegments ? this._rightSegments.findIndex(s => String(s.id) === String(brParentSeg.id)) : activeBr.segIdx) : activeBr.segIdx;
-      const brStartY = (this._rightNodeY && this._rightNodeY[brSIdx] !== undefined) ? this._rightNodeY[brSIdx] : top;
-      const mergeOffset = isSameSeg ? Math.max(brH, preMergeMainH) : Math.max(brStartY + brH - top, preMergeMainH);
-      const mergeTargetY = top + mergeOffset;
-      const postStops = Math.max(0, n - mergeIdx);
-      return mergeTargetY + 32 + postStops * 32;
-    }
-
-    return top + topOffset + n * 32;
+    const pills = this.getSegmentPills(seg, segIdx, true);
+    return pills.length > 0 ? pills[pills.length - 1].y : (top + 64);
   }
 
   getLeftAddStopY(seg, top, bot, isLastSeg, segIdx) {
-    const hasBranchStart = this.branches && this.branches.some(b => b.segIdx === segIdx);
-    const isBranchMode = !!this.isBranchMode;
-    const bottomOffset = (isBranchMode || hasBranchStart) ? 64 : 32;
-    const n = seg.stops ? seg.stops.length : 0;
-
-    const activeBr = this._getActiveMergeBranch(seg, segIdx);
-    if (activeBr) {
-      const isSameSeg = (activeBr.segIdx === segIdx);
-      let mergeIdx = -1;
-      if (activeBr.targetStopId && seg.stops) {
-        mergeIdx = seg.stops.findIndex(st => String(st.id) === String(activeBr.targetStopId));
-      }
-      if (mergeIdx === -1) {
-        mergeIdx = (!activeBr.targetStopId && seg.stops) ? seg.stops.length : 0;
-      }
-      const brH = this.getBranchRequiredHeight(activeBr);
-      const preMergeMainH = bottomOffset + (mergeIdx > 0 ? mergeIdx * 32 : 0) + 32;
-      const brParentSeg = this.segments[activeBr.segIdx];
-      const brSIdx = brParentSeg ? (this._leftSegments ? this._leftSegments.findIndex(s => String(s.id) === String(brParentSeg.id)) : activeBr.segIdx) : activeBr.segIdx;
-      const brStartY = (this._leftNodeY && this._leftNodeY[brSIdx + 1] !== undefined) ? this._leftNodeY[brSIdx + 1] : bot;
-      const mergeOffset = isSameSeg ? Math.max(brH, preMergeMainH) : Math.max(bot - (brStartY - brH), preMergeMainH);
-      const mergeTargetY = bot - mergeOffset;
-      const postStops = Math.max(0, n - mergeIdx);
-      return mergeTargetY - 32 - postStops * 32;
-    }
-
-    return bot - bottomOffset - n * 32;
+    const pills = this.getSegmentPills(seg, segIdx, false);
+    return pills.length > 0 ? pills[pills.length - 1].y : (bot - 64);
   }
 
   getRightIntervalY(seg, top, bot, isLastSeg, segIdx) {
-    const hasBranch = this.branches && this.branches.some(b => 
-      b.finished && (b.segIdx === segIdx || (b.targetStopId && seg && seg.stops && seg.stops.some(st => String(st.id) === String(b.targetStopId))))
-    );
-    if (hasBranch) {
-      return bot - 28;
+    const actualSegIdx = (segIdx !== undefined) ? segIdx : (seg ? this.segments.indexOf(seg) : -1);
+    const layout = this.getSegmentLayout(seg, actualSegIdx, true);
+    if (layout.merges && layout.merges.size > 0) {
+      const firstMergeY = [...layout.merges.values()][0]?.mergeY;
+      if (firstMergeY && Math.abs(firstMergeY - top) >= 48) {
+        return (top + firstMergeY) / 2;
+      }
     }
-
-    if (seg.stops && seg.stops.length > 0) {
-      return (top + bot) / 2;
-    }
-    if (isLastSeg) {
-      return (top + bot) / 2;
-    }
-    if (this.editable === false) {
-      if (segIdx === 0) return top + 8;
-    }
-    return top + 20;
+    return (top + bot) / 2;
   }
 
   getLeftIntervalY(seg, top, bot, isLastSeg, segIdx) {
-    const hasBranch = this.branches && this.branches.some(b => 
-      b.finished && (b.segIdx === segIdx || (b.targetStopId && seg && seg.stops && seg.stops.some(st => String(st.id) === String(b.targetStopId))))
-    );
-    if (hasBranch) {
-      return top + 28;
+    const actualSegIdx = (segIdx !== undefined) ? segIdx : (seg ? this.segments.indexOf(seg) : -1);
+    const layout = this.getSegmentLayout(seg, actualSegIdx, false);
+    if (layout.merges && layout.merges.size > 0) {
+      const firstMergeY = [...layout.merges.values()][0]?.mergeY;
+      if (firstMergeY && Math.abs(bot - firstMergeY) >= 48) {
+        return (bot + firstMergeY) / 2;
+      }
     }
-
-    if (seg.stops && seg.stops.length > 0) {
-      return (top + bot) / 2;
-    }
-    if (isLastSeg) {
-      return (top + bot) / 2;
-    }
-    if (this.editable === false) {
-      const leftCount = this._leftSegments ? this._leftSegments.length : this.segments.filter(s => s.side === 'left').length;
-      if (segIdx === 0) return top + 8;
-    }
-    return top + 20;
+    return (top + bot) / 2;
   }
 
   getLeftAddBranchY(seg, top, bot, isLastSeg, segIdx) {

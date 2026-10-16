@@ -7,8 +7,9 @@ import StopSelector from './components/StopSelector.vue';
 import SvgIcon from '@/components/ui/SvgIcon.vue';
 
 const router = useRouter();
-import { migrateToGraph, traverseGraph, addControlNodeGraph, addStopGraph, removeStopGraph, removeNodeGraph, addBranchGraph, addBranchNodeGraph, removeBranchNodeGraph, setBranchConfigGraph } from './utils/graphModel.js';
+import { migrateToGraph, traverseGraph, addControlNodeGraph, addStopGraph, removeStopGraph, removeNodeGraph, addBranchGraph, addBranchNodeGraph, removeBranchNodeGraph, setBranchConfigGraph, renameStopIdGraph } from './utils/graphModel.js';
 import { useGraphHistory } from './utils/graphHistory.js';
+import { calculateBranchLevels } from './utils/branchLevelModel.js';
 
 const route = useRoute();
 const stopsStore = useStopsStore();
@@ -110,6 +111,7 @@ const traversedData = computed(() => traverseGraph(routeGraph.value));
 const nodes = computed(() => traversedData.value.nodes);
 const segments = computed(() => traversedData.value.segments);
 const branches = computed(() => traversedData.value.branches);
+const branchLevels = computed(() => calculateBranchLevels(branches.value, segments.value, nodes.value));
 
 /* ─────────── Developer Graph Inspector ─────────── */
 const showGraphInspector = ref(true);
@@ -179,13 +181,15 @@ const developerLinkedList = computed(() => {
 
       const brConfig = node.branchConfig || {};
       let finishDescription = '';
-      if (brConfig.targetType === 'stop' && brConfig.targetStopId) {
+      if ((brConfig.targetType === 'stop' || brConfig.targetType === 'current') && brConfig.targetStopId) {
         const targetStop = g.stops[brConfig.targetStopId];
         const stopName = targetStop?.name || `Stop #${brConfig.targetStopId}`;
         const targetSeg = Object.values(g.segments).find(s => {
           let curr = s.firstStopId;
-          while (curr) {
-            if (curr == brConfig.targetStopId) return true;
+          const visited = new Set();
+          while (curr && !visited.has(curr)) {
+            visited.add(curr);
+            if (String(curr) === String(brConfig.targetStopId)) return true;
             curr = g.stops[curr]?.nextStopId;
           }
           return false;
@@ -334,36 +338,36 @@ function getBranchTargetSegIdx(b) {
     const sIdx = segs.findIndex(s => s.stops && s.stops.some(st => String(st.id) === String(b.targetStopId)));
     if (sIdx !== -1) return sIdx;
   }
-  if (b.targetNodeId && b.targetType !== 'node' && b.targetType !== 'bottom_arc') {
+  if (b.targetNodeId && b.targetType !== 'bottom_arc') {
     const sIdx = segs.findIndex(s => String(s.nextNodeId) === String(b.targetNodeId));
     if (sIdx !== -1) return sIdx;
   }
   return b.segIdx ?? 0;
 }
 
-function addStop(sIdx, side, insertIdx = -1) {
+function addStop(sIdx, side, insertIdx = -1, isAfterMerge = false) {
   const seg = segments.value[sIdx];
   if (!seg) return;
-  takeSnapshot('Додавання зупинки', { sIdx, side, insertIdx });
+  takeSnapshot('Додавання зупинки', { sIdx, side, insertIdx, isAfterMerge });
   const newStopId = addStopGraph(routeGraph.value, seg.id, side, insertIdx);
 
-  // If adding at the end of the segment via the main bottom pill (insertIdx === -1),
-  // and there is a finished branch reconnecting into this segment that doesn't have a valid targetStopId yet,
-  // this new stop is the first stop after the reconnection, so bind the branch targetStopId to it.
-  if (insertIdx === -1 && newStopId) {
-    const mergingBranch = branches.value.find(b => {
-      if (!b.finished || b.targetType === 'node' || b.targetType === 'bottom_arc') return false;
+  // If this pill was clicked AFTER a merge at the end of the segment (isAfterMerge === true),
+  // OR if adding at the end of the segment without explicit insertIdx (insertIdx === -1),
+  // bind any branch reconnecting into this segment/node to merge before this new stop!
+  if ((isAfterMerge || insertIdx === -1) && newStopId) {
+    const mergingBranches = (branches.value || []).filter(b => {
+      if (!b.finished || b.targetType === 'bottom_arc') return false;
       const targetSegIdx = getBranchTargetSegIdx(b);
       const isThisSeg = (targetSegIdx === sIdx);
       const hasValidTargetStop = b.targetStopId && seg.stops && seg.stops.some(st => String(st.id) === String(b.targetStopId));
-      return isThisSeg && !hasValidTargetStop;
+      return isThisSeg && (!b.targetStopId || !hasValidTargetStop || b.targetType === 'node');
     });
 
-    if (mergingBranch) {
+    for (const mergingBranch of mergingBranches) {
       const startNodeId = mergingBranch.id.replace('br_', '');
       setBranchConfigGraph(routeGraph.value, startNodeId, {
-        targetType: 'stop',
-        targetStopId: newStopId
+        targetStopId: newStopId,
+        targetType: 'stop'
       });
     }
   }
@@ -378,7 +382,7 @@ function removeStop(sIdx, stIdx) {
   removeStopGraph(routeGraph.value, seg.id, stopId);
 }
 
-function addControlNode(side = 'right', explicitSegIdx = -1, posMode = 'before') {
+function addControlNode(side = 'right', explicitSegIdx = -1, posMode = 'before', insertIdx = -1) {
   let targetSegIdx = explicitSegIdx;
 
   if (targetSegIdx === -1) {
@@ -394,8 +398,8 @@ function addControlNode(side = 'right', explicitSegIdx = -1, posMode = 'before')
   if (targetSegIdx === -1 || !segments.value[targetSegIdx]) return null;
   const targetSegId = segments.value[targetSegIdx].id;
 
-  takeSnapshot('Додавання контрольної точки', { side, targetSegIdx, posMode });
-  const newId = addControlNodeGraph(routeGraph.value, targetSegId, posMode, side);
+  takeSnapshot('Додавання контрольної точки', { side, targetSegIdx, posMode, insertIdx });
+  const newId = addControlNodeGraph(routeGraph.value, targetSegId, posMode, side, insertIdx);
 
   setTimeout(() => {
     if (canvasRef.value) canvasRef.value.focusNode(newId);
@@ -495,19 +499,25 @@ const finishingNodeOptions = computed(() => {
     // Control nodes of the parent branch only
     return parentBranchForFinishing.value?.nodes || [];
   } else {
-    // Control nodes AND terminus nodes of the same rail side
+    // Control nodes AND terminus nodes of the same rail side after the branch start node
     const brSegIdx = currentFinishingBranch.value?.segIdx ?? 0;
     const seg = segments.value[brSegIdx] || segments.value[0];
     const side = seg?.side || 'right';
-    // Include all nodes of this side (control + terminus), but not top/bottom end nodes without a side
-    return nodes.value.filter(n => n.side === side || n.isTerminus);
+    const allSideNodes = nodes.value.filter(n => n.side === side || n.isTerminus);
+    const startNodeId = currentFinishingBranch.value?.startNodeId || currentFinishingBranch.value?.id?.replace('br_', '');
+    const startIdx = allSideNodes.findIndex(n => String(n.id) === String(startNodeId));
+    if (startIdx !== -1) {
+      return allSideNodes.slice(startIdx + 1);
+    }
+    return allSideNodes;
   }
 });
 
 function finishBranch(brId) {
   finishBranchTarget.value = brId;
-  selectedFinishType.value = 'current';
-  selectedFinishNodeId.value = null;
+  const br = branches.value.find(b => b.id === brId);
+  selectedFinishType.value = br?.targetType || 'current';
+  selectedFinishNodeId.value = br?.targetNodeId || null;
 }
 
 function confirmFinishBranch() {
@@ -524,6 +534,9 @@ function confirmFinishBranch() {
     const parentSegId = routeGraph.value.nodes[startNodeId]?.nextSegId;
     const parentSeg = parentSegId ? routeGraph.value.segments[parentSegId] : null;
     config.targetStopId = parentSeg ? parentSeg.firstStopId : null;
+  } else if (config.targetType === 'node') {
+    config.bypassedMainState = 'add_pills';
+    config.targetStopId = null;
   }
   setBranchConfigGraph(routeGraph.value, startNodeId, config);
   finishBranchTarget.value = null;
@@ -839,8 +852,14 @@ function assignRealStopToSegStop(stopId, realStopIdStr) {
   const realStopId = parseInt(realStopIdStr);
   const realStop = availableStops.value.find(s => String(s.id) === String(realStopId));
   if (realStop) {
-    graphStop.realId = realStop.id;
-    graphStop.name = realStop.name;
+    const newId = renameStopIdGraph(routeGraph.value, stopId, realStop.id, realStop.name, {
+      realId: realStop.id,
+      direction: realStop.direction,
+      type: realStop.type
+    });
+    if (route.query.stopId === String(stopId) && newId) {
+      router.replace({ query: { ...route.query, stopId: String(newId) } });
+    }
   }
 }
 
@@ -857,10 +876,13 @@ function createNewStopForSegStop(stopId, newName) {
     longitude: 0,
     platformsCount: 1
   });
-  const graphStop = routeGraph.value.stops[stopId];
-  if (graphStop) {
-    graphStop.realId = newStopId;
-    graphStop.name = newName;
+  const newId = renameStopIdGraph(routeGraph.value, stopId, newStopId, newName, {
+    realId: newStopId,
+    direction: 'новий напрямок',
+    type: 'normal'
+  });
+  if (route.query.stopId === String(stopId) && newId) {
+    router.replace({ query: { ...route.query, stopId: String(newId) } });
   }
 }
 
@@ -1066,14 +1088,14 @@ const canvasRef = ref(null);
         :editable="isEditable"
         @edit-segment="seg  => editSeg  = seg"
         @edit-node="   node => editNode = node"
-        @add-stop="    (sIdx, side, insertIdx) => addStop(sIdx, side, insertIdx)"
+        @add-stop="    (sIdx, side, insertIdx, isAfterMerge) => addStop(sIdx, side, insertIdx, isAfterMerge)"
         @remove-stop=" (sIdx, stIdx) => removeStop(sIdx, stIdx)"
         @remove-node=" idx => removeNode(idx)"
         @add-branch="(sIdx) => addBranch(sIdx)"
         @add-sub-branch="(pId, pNodeId) => addBranch(null, pId, pNodeId)"
         @finish-branch="(brId) => finishBranch(brId)"
         @config-branch="(br) => configBranch(br)"
-        @add-node="(side, segIdx, pos) => addControlNode(side, segIdx, pos)"
+        @add-node="(side, segIdx, pos, insertIdx) => addControlNode(side, segIdx, pos, insertIdx)"
         @add-branch-node="(brId, sIdx, pos) => addBranchNode(brId, sIdx, pos)"
         @add-branch-stop="(brId, si) => addBranchStop(brId, si)"
         @extend-branch-with-stop="extendBranchWithStop"
@@ -1263,7 +1285,10 @@ const canvasRef = ref(null);
                    class="p-3 rounded-xl bg-purple-950/40 border border-purple-800/60 space-y-2">
                 <div class="flex items-center justify-between font-bold text-purple-300">
                   <span>{{ br.name }} ({{ br.id }})</span>
-                  <span class="text-[9px] bg-purple-900 text-purple-200 px-2 py-0.5 rounded font-sans">targetType: {{ br.targetType }}</span>
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-[9px] bg-purple-900/80 text-purple-200 px-2 py-0.5 rounded font-sans font-bold">L{{ branchLevels[br.id] || 1 }}</span>
+                    <span class="text-[9px] bg-purple-900 text-purple-200 px-2 py-0.5 rounded font-sans">targetType: {{ br.targetType }}</span>
+                  </div>
                 </div>
                 
                 <div class="text-[10px] text-gray-300 space-y-1">
