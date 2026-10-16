@@ -37,6 +37,7 @@ export function migrateToGraph(nodesArr, segmentsArr, branchesArr) {
   });
 
   graph.startNodeId = topNode ? topNode.id : nodes[0].id;
+  graph.originNodeId = graph.startNodeId;
 
   // Ordered list of nodes along right rail: [topNode, ...rightNodes, bottomNode]
   const fullRightNodes = [topNode, ...rightNodes, bottomNode].filter(Boolean);
@@ -856,3 +857,50 @@ export function renameStopIdGraph(graph, oldStopId, newStopId, newName, extraPro
 
   return targetId;
 }
+
+export function rotateGraph180(graph) {
+  if (!graph || !graph.nodes) return;
+
+  if (!graph.originNodeId) {
+    graph.originNodeId = graph.startNodeId;
+  }
+
+  let newStartNodeId = null;
+
+  Object.values(graph.nodes).forEach(node => {
+    if (!node) return;
+    if (node.side === 'top' || (!node.side && String(node.id) === String(graph.startNodeId))) {
+      node.side = 'bottom';
+    } else if (node.side === 'bottom') {
+      node.side = 'top';
+      newStartNodeId = node.id;
+    } else if (node.side === 'right') {
+      node.side = 'left';
+    } else if (node.side === 'left') {
+      node.side = 'right';
+    }
+  });
+
+  if (newStartNodeId !== null) {
+    graph.startNodeId = newStartNodeId;
+  }
+
+  Object.values(graph.segments || {}).forEach(seg => {
+    if (!seg) return;
+    if (seg.side === 'right') {
+      seg.side = 'left';
+    } else if (seg.side === 'left') {
+      seg.side = 'right';
+    }
+  });
+
+  Object.values(graph.stops || {}).forEach(stop => {
+    if (!stop) return;
+    if (stop.side === 'right') {
+      stop.side = 'left';
+    } else if (stop.side === 'left') {
+      stop.side = 'right';
+    }
+  });
+}
+

@@ -7,7 +7,7 @@ import StopSelector from './components/StopSelector.vue';
 import SvgIcon from '@/components/ui/SvgIcon.vue';
 
 const router = useRouter();
-import { migrateToGraph, traverseGraph, addControlNodeGraph, addStopGraph, removeStopGraph, removeNodeGraph, addBranchGraph, addBranchNodeGraph, removeBranchNodeGraph, setBranchConfigGraph, renameStopIdGraph } from './utils/graphModel.js';
+import { migrateToGraph, traverseGraph, addControlNodeGraph, addStopGraph, removeStopGraph, removeNodeGraph, addBranchGraph, addBranchNodeGraph, removeBranchNodeGraph, setBranchConfigGraph, renameStopIdGraph, rotateGraph180 } from './utils/graphModel.js';
 import { useGraphHistory } from './utils/graphHistory.js';
 import { calculateBranchLevels } from './utils/branchLevelModel.js';
 
@@ -289,13 +289,36 @@ const stopResize = () => {
   document.removeEventListener('mouseup', stopResize);
 };
 
-/* ─────────── Branch Mode ─────────── */
+/* ─────────── Branch Mode & Rotation ─────────── */
 const isBranchMode = ref(false);
 const isEditable = ref(true);
+const isRotated180 = ref(false);
+const isRotatingAnim = ref(false);
+
+function handleRotate180() {
+  if (isRotatingAnim.value) return;
+  isRotatingAnim.value = true;
+
+  setTimeout(() => {
+    rotateGraph180(routeGraph.value);
+    undoStack.value.forEach(entry => {
+      if (entry?.snapshot) rotateGraph180(entry.snapshot);
+    });
+    redoStack.value.forEach(entry => {
+      if (entry?.snapshot) rotateGraph180(entry.snapshot);
+    });
+    isRotated180.value = !isRotated180.value;
+  }, 850);
+
+  setTimeout(() => {
+    isRotatingAnim.value = false;
+  }, 1550);
+}
 
 /* ─────────── routeData object for canvas ─────────── */
 const routeData = computed(() => ({
   routeNumber: routeNumber.value,
+  originNodeId: routeGraph.value?.originNodeId || routeGraph.value?.startNodeId,
   nodes: nodes.value.map(n => ({
     ...n,
     isDepot: getStopType(n.realId) === 'depo'
@@ -602,6 +625,11 @@ const editNode = ref(null);
 /* ─────────── Totals ─────────── */
 const totalStops = computed(() => segments.value.reduce((a, s) => a + s.stops.length, 0));
 const firstTerminus = computed(() => {
+  const originId = routeGraph.value?.originNodeId;
+  if (originId) {
+    const found = endNodes.value.find(n => String(n.id) === String(originId));
+    if (found) return found;
+  }
   return endNodes.value[0] || null;
 });
 
@@ -1080,9 +1108,11 @@ const canvasRef = ref(null);
     ════════════════════════════════════════ -->
     <div class="flex-1 relative overflow-hidden">
 
-      <!-- Canvas -->
+      <!-- Canvas (kept visible, blurred smoothly during 180° rotation) -->
       <RouteCanvas
         ref="canvasRef"
+        class="transition-all duration-300 ease-in-out"
+        :class="isRotatingAnim ? 'no-structural-anim blur-[6px] scale-[0.99]' : 'blur-0 scale-100'"
         :route-data="routeData"
         :is-branch-mode="isBranchMode"
         :editable="isEditable"
@@ -1103,6 +1133,35 @@ const canvasRef = ref(null);
         @edit-branch-node="editBranchNode"
         @toggle-branch-mode="isBranchMode = !isBranchMode"
       />
+
+      <!-- 180° Rotation Blur Overlay & Single-Turn Indicator -->
+      <transition
+        enter-active-class="transition-all duration-200 ease-out"
+        enter-from-class="opacity-0"
+        enter-to-class="opacity-100"
+        leave-active-class="transition-all duration-250 ease-in"
+        leave-from-class="opacity-100"
+        leave-to-class="opacity-0"
+      >
+        <div v-if="isRotatingAnim"
+             class="absolute inset-0 z-40 flex items-center justify-center bg-white/25 backdrop-blur-md pointer-events-none select-none">
+          <div class="bg-white/95 border border-gray-200/90 shadow-2xl rounded-3xl px-8 py-6 flex flex-col items-center gap-4">
+            <div class="my-1.5">
+              <div class="w-14 h-14 rounded-xl flex items-center justify-center text-white shadow-lg diamond-rotate-once-180"
+                   :style="{ backgroundColor: routeColor }">
+                <svg class="w-7 h-7 -rotate-45" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M7 16V4m0 0L3 8m4-4l4 4" />
+                  <path d="M17 8v12m0 0l4-4m-4 4l-4-4" />
+                </svg>
+              </div>
+            </div>
+            <div class="text-center">
+              <div class="text-sm font-bold text-gray-900">Розворот схеми на 180°</div>
+              <div class="text-xs font-medium text-gray-500 mt-0.5">Зміна сторін напрямків маршруту...</div>
+            </div>
+          </div>
+        </div>
+      </transition>
 
       <!-- Branch Config Modal -->
       <Teleport to="body">
@@ -1451,7 +1510,7 @@ const canvasRef = ref(null);
           </div>
 
           <!-- Action Buttons Grid -->
-          <div class="grid grid-cols-2 gap-2">
+          <div class="grid grid-cols-3 gap-2">
             <!-- Undo (Ctrl+Z) -->
             <button @click="undo" :disabled="!canUndo"
                     class="w-8 h-8 rounded-full border shadow-sm flex items-center justify-center transition-all cursor-pointer"
@@ -1465,6 +1524,17 @@ const canvasRef = ref(null);
                     :class="canRedo ? 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50' : 'bg-gray-100 text-gray-300 border-gray-200 cursor-not-allowed'"
                     title="Повторити дію (Ctrl+Y / Ctrl+Shift+Z)">
               <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 10h-10a8 8 0 00-8 8v2m18-10l-6 6m6-6l-6-6" /></svg>
+            </button>
+            <!-- Rotate 180° -->
+            <button @click="handleRotate180"
+                    class="w-8 h-8 rounded-full border shadow-sm flex items-center justify-center transition-all cursor-pointer"
+                    :class="isRotated180 ? 'text-white' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'"
+                    :style="isRotated180 ? { backgroundColor: routeColor, borderColor: routeColor } : {}"
+                    title="Перевернути схему на 180°">
+              <svg class="w-4 h-4 transition-transform duration-300" :class="{ 'rotate-180': isRotated180 }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M7 16V4m0 0L3 8m4-4l4 4" />
+                <path d="M17 8v12m0 0l4-4m-4 4l-4-4" />
+              </svg>
             </button>
             <!-- Branch Toggle (Branch SVG Icon) -->
             <button @click="isBranchMode = !isBranchMode; if (isBranchMode) isEditable = true"
@@ -2089,4 +2159,21 @@ const canvasRef = ref(null);
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 9px; }
+
+@keyframes diamondRotateOnce180 {
+  0%, 38% {
+    transform: rotate(45deg) scale(1);
+  }
+  82% {
+    transform: rotate(225deg) scale(1.06);
+  }
+  100% {
+    transform: rotate(225deg) scale(1);
+  }
+}
+
+.diamond-rotate-once-180 {
+  transform: rotate(45deg);
+  animation: diamondRotateOnce180 1.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
 </style>

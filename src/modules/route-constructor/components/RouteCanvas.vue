@@ -1136,8 +1136,9 @@ const nodeTravelTimes = computed(() => {
   const segMapById = new Map((props.routeData.segments || []).map(s => [String(s.id), s]));
   const segMapByFromNode = new Map((props.routeData.segments || []).map(s => [String(s.fromNodeId), s]));
 
-  // Find start node (top terminus)
-  const startNode = firstNode.value || props.routeData.nodes.find(n => !n.side || n.side === 'top') || props.routeData.nodes[0];
+  // Find start node (original top terminus even if rotated 180°)
+  const originNode = props.routeData?.originNodeId ? nodeMap.get(String(props.routeData.originNodeId)) : null;
+  const startNode = originNode || firstNode.value || props.routeData.nodes.find(n => !n.side || n.side === 'top') || props.routeData.nodes[0];
   if (!startNode) return {};
 
   const firstTerminusId = startNode.id;
@@ -1800,6 +1801,15 @@ defineExpose({
 .stop-item,
 .stop-item-left {
   animation: stopFadeIn 0.35s ease-out forwards;
+}
+
+.no-structural-anim .anim-row,
+.no-structural-anim .bottom-cap-group,
+.no-structural-anim .anim-rect,
+.no-structural-anim .stop-item,
+.no-structural-anim .stop-item-left {
+  transition: none !important;
+  animation: none !important;
 }
 
 @keyframes popVectorRadius {
