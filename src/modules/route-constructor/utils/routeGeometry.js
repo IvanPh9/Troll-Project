@@ -124,7 +124,7 @@ export class OvalLayout {
     const isEditable = (this.editable !== false && !this.isBranchMode);
     const pillsHeight = isEditable ? sectionCount * 32 : 0;
     const nodesHeight = nodeCount * 32;
-    const finishExtra = !b.finished ? 48 : 0;
+    const finishExtra = 64;
     return Math.max(96, 64 + totalStopsHeight + pillsHeight + nodesHeight + finishExtra);
   }
 
@@ -169,6 +169,15 @@ export class OvalLayout {
     if (b.targetNodeId && b.targetType !== 'bottom_arc') {
       const idx = segs.findIndex(s => String(s.nextNodeId) === String(b.targetNodeId));
       if (idx !== -1) return idx;
+    }
+    if (b.targetType === 'bottom_arc') {
+      if (sideSegments) {
+        return b.side === 'left' ? 0 : (sideSegments.length - 1);
+      } else {
+        const sideSegs = this.segments.filter(s => b.side === 'left' ? s.side === 'left' : (!s.side || s.side === 'right'));
+        const targetSideSeg = b.side === 'left' ? sideSegs[0] : sideSegs[sideSegs.length - 1];
+        if (targetSideSeg) return this.segments.indexOf(targetSideSeg);
+      }
     }
     if (sideSegments && b.segIdx !== undefined && this.segments && this.segments[b.segIdx]) {
       const pId = this.segments[b.segIdx].id;
@@ -277,11 +286,11 @@ export class OvalLayout {
             const brSIdx = parentSeg ? (this._rightSegments ? this._rightSegments.findIndex(s => String(s.id) === String(parentSeg.id)) : br.segIdx) : br.segIdx;
             const brStartY = (this._rightNodeY && this._rightNodeY[brSIdx] !== undefined) ? this._rightNodeY[brSIdx] : topY;
 
-            let neededY = currentY;
+            let neededY = currentY + 32;
             if (isSameSeg) {
-              neededY = Math.max(currentY, topY + brH);
+              neededY = Math.max(neededY, topY + brH);
             } else {
-              neededY = Math.max(currentY, brStartY + brH);
+              neededY = Math.max(neededY, brStartY + brH);
             }
 
             const mergeY = neededY;
@@ -313,14 +322,14 @@ export class OvalLayout {
             currentY += 32;
           }
         } else if (slot === stops.length) {
-          // 3. End of segment pill (after all stops and node merges)
-          if (isEditable) {
-            const hasNodeMerges = (slotBranches.get(stops.length) || []).some(b => b.finished);
+          // 3. End of segment pill (only when no finished branch merges at the end node, since -before pill is already placed before the merge)
+          const hasNodeMerges = (slotBranches.get(stops.length) || []).some(b => b.finished);
+          if (isEditable && !hasNodeMerges) {
             layoutResult.pills.push({
               id: `pill-${globalSegIdx}-${slot}-after`,
               y: currentY,
               insertIdx: slot,
-              isAfterMerge: hasNodeMerges,
+              isAfterMerge: false,
               title: 'Додати зупинку'
             });
             currentY += 32;
@@ -361,11 +370,11 @@ export class OvalLayout {
             const brSIdx = parentSeg ? (this._leftSegments ? this._leftSegments.findIndex(s => String(s.id) === String(parentSeg.id)) : br.segIdx) : br.segIdx;
             const brStartY = (this._leftNodeY && this._leftNodeY[brSIdx + 1] !== undefined) ? this._leftNodeY[brSIdx + 1] : botY;
 
-            let neededY = currentY;
+            let neededY = currentY - 32;
             if (isSameSeg) {
-              neededY = Math.min(currentY, botY - brH);
+              neededY = Math.min(neededY, botY - brH);
             } else {
-              neededY = Math.min(currentY, brStartY - brH);
+              neededY = Math.min(neededY, brStartY - brH);
             }
 
             const mergeY = neededY;
@@ -381,8 +390,10 @@ export class OvalLayout {
         // 2. Stop at this slot
         if (slot < stops.length) {
           const st = stops[slot];
+          const extraH = getStopHeight(st) - 32;
+          if (extraH > 0) currentY -= extraH;
           layoutResult.stops.set(String(st.id), { y: currentY });
-          currentY -= getStopHeight(st);
+          currentY -= 32;
 
           const nextSlotBrs = slotBranches.get(slot + 1) || [];
           if (isEditable && nextSlotBrs.some(b => b.finished)) {
@@ -396,13 +407,13 @@ export class OvalLayout {
             currentY -= 32;
           }
         } else if (slot === stops.length) {
-          if (isEditable) {
-            const hasNodeMerges = (slotBranches.get(stops.length) || []).some(b => b.finished);
+          const hasNodeMerges = (slotBranches.get(stops.length) || []).some(b => b.finished);
+          if (isEditable && !hasNodeMerges) {
             layoutResult.pills.push({
               id: `pill-${globalSegIdx}-${slot}-after`,
               y: currentY,
               insertIdx: slot,
-              isAfterMerge: hasNodeMerges,
+              isAfterMerge: false,
               title: 'Додати зупинку'
             });
             currentY -= 32;
@@ -418,15 +429,15 @@ export class OvalLayout {
 
   getBranchMergeY(br, isRight = true) {
     if (!br) return 0;
-    if (br.targetType === 'bottom_arc') return this.botY;
+    if (br.targetType === 'bottom_arc') return isRight ? this.botY : this.topY;
 
     const targetSegIdx = this._getBranchTargetSegIdx(br);
     const targetSeg = this.segments[targetSegIdx];
-    if (!targetSeg) return 0;
+    if (!targetSeg) return isRight ? this.botY : this.topY;
 
     const layout = this.getSegmentLayout(targetSeg, targetSegIdx, isRight);
     const mergeInfo = layout.merges.get(br.id);
-    return mergeInfo ? mergeInfo.mergeY : (isRight ? 0 : this.botY);
+    return mergeInfo ? mergeInfo.mergeY : (isRight ? this.botY : this.topY);
   }
 
   getSegmentPills(seg, segIdx, isRight = true) {

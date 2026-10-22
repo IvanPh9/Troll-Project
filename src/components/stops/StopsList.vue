@@ -43,7 +43,21 @@ const formDirectionCode = ref(1)
 const formDirectionComment = ref('')
 const formCoordinates = ref('')
 const formPlatformsCount = ref(1)
+const formDepotTravelTimes = ref<Record<number, number | ''>>({})
 const validationErrors = ref<Record<string, string>>({})
+
+// Список усіх наявних депо в системі
+const availableDepots = computed(() => {
+  return store.stopsList.filter(s => s.type === 'depo')
+})
+
+const initDepotTimes = () => {
+  const times: Record<number, number | ''> = {}
+  availableDepots.value.forEach(depo => {
+    times[depo.stopId] = ''
+  })
+  formDepotTravelTimes.value = times
+}
 
 watch(() => store.isAddStopModalOpen, (newVal) => {
   if (newVal) {
@@ -53,6 +67,7 @@ watch(() => store.isAddStopModalOpen, (newVal) => {
     formDirectionComment.value = ''
     formCoordinates.value = ''
     formPlatformsCount.value = 1
+    initDepotTimes()
     validationErrors.value = {}
     isModalOpen.value = true
   }
@@ -71,6 +86,15 @@ const saveStop = () => {
     : 0
   const newId = maxId + 1
 
+  const cleanDepotTimes: Record<number, number> = {}
+  if (formType.value === 'normal') {
+    Object.entries(formDepotTravelTimes.value).forEach(([depoId, val]) => {
+      if (val !== '' && val !== null && !isNaN(Number(val))) {
+        cleanDepotTimes[Number(depoId)] = Number(val)
+      }
+    })
+  }
+
   const tempStop = new Stop(
     newId,
     formName.value.trim(),
@@ -79,7 +103,8 @@ const saveStop = () => {
     formDirectionComment.value.trim(),
     formCoordinates.value.trim(),
     0,
-    Number(formPlatformsCount.value)
+    Number(formPlatformsCount.value),
+    cleanDepotTimes
   )
 
   const { isValid, errors } = tempStop.validate()
@@ -131,6 +156,25 @@ const setTypeFilter = (typeStr: string) => {
 
 const searchQuery = ref('')
 
+const terminusStationNames = [
+  'Залізничний вокзал',
+  'Центральний ринок',
+  'Універмаг «Київ»',
+  'АТ «Хімпром»',
+  'Тролейбусне депо (КП «Електроавтотранс» )',
+  'Тролейбусне депо (Хімпром)',
+  'Сумський державний університет (СумДУ)',
+  'Сумський державний університет',
+  'Автовокзал',
+  'Вулиця Героїв Крут'
+]
+
+const isStopTerminus = (stop: Stop) => {
+  return stop.type === 'end' || 
+    (stop.directionComment && stop.directionComment.toLowerCase().includes('кінцев')) ||
+    terminusStationNames.some(t => t.toLowerCase() === stop.name.trim().toLowerCase())
+}
+
 const displayedStops = computed(() => {
   let result = [...store.stopsList]
 
@@ -143,7 +187,11 @@ const displayedStops = computed(() => {
   }
 
   if (currentType.value !== 'all') {
-    result = result.filter(s => s.type === currentType.value)
+    if (currentType.value === 'end') {
+      result = result.filter(s => isStopTerminus(s))
+    } else {
+      result = result.filter(s => s.type === currentType.value)
+    }
   }
 
   return result
@@ -175,7 +223,7 @@ const typeLabel = computed(() => {
 
 const typeDotClass = computed(() => {
   if (currentType.value === 'normal') return 'bg-teal-500 shadow-[0_0_4px_#0d9488]'
-  if (currentType.value === 'end') return 'bg-red-500 shadow-[0_0_4px_#ef4444]'
+  if (currentType.value === 'end') return 'bg-amber-500 shadow-[0_0_4px_#f59e0b]'
   if (currentType.value === 'depo') return 'bg-slate-500 shadow-[0_0_4px_#64748b]'
   return 'bg-teal-500 shadow-[0_0_4px_#0d9488]'
 })
@@ -274,10 +322,27 @@ const renderMapMarkers = () => {
       const btnText = isDeleteMode.value ? 'Видалити' : 'Детальніше'
       const indicatorColor = isDeleteMode.value ? 'border-red-500' : 'border-black'
 
+      const terminusMap: Record<string, string[]> = {
+        'Залізничний вокзал': ['1', '7', '57A'],
+        'Центральний ринок': ['2', '10A', '12'],
+        'Універмаг «Київ»': ['1', '10A'],
+        'АТ «Хімпром»': ['5', '8'],
+        'Тролейбусне депо (КП «Електроавтотранс» )': ['1', '2', '3', '5', '7'],
+        'Сумський державний університет (СумДУ)': ['3', '4', '9'],
+        'Автовокзал': ['2', '12'],
+        'Вулиця Героїв Крут': ['1', '4', '15A']
+      }
+      const matchedKey = Object.keys(terminusMap).find(k => k.toLowerCase() === group.name.trim().toLowerCase())
+      const routesForTerminus = matchedKey ? terminusMap[matchedKey] : null
+      const terminusBadgeHtml = routesForTerminus 
+        ? `<div class="mb-2"><span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200/60 inline-block">Кінцева: ${routesForTerminus.map(r => '№' + r).join(', ')}</span></div>`
+        : ''
+
       const popupHtml = `
         <div class="p-2 text-center font-sans" style="min-width: 160px;">
           <div class="w-4 h-4 rounded-full border-2 bg-white mx-auto mb-1 ${indicatorColor}"></div>
           <h4 class="font-bold text-gray-800 text-sm mb-1 leading-tight">${group.name}</h4>
+          ${terminusBadgeHtml}
           <p class="text-xs text-gray-400 font-semibold mb-2">Напрямків: ${group.stops.length}</p>
           <button 
             class="px-4 py-1.5 text-white text-[11px] font-bold rounded-lg transition-colors cursor-pointer inline-block ${btnBgColor}"
@@ -361,12 +426,12 @@ watch(isDeleteMode, () => {
                 </span>
                 <span v-if="currentType === 'normal'" class="w-1.5 h-1.5 bg-teal-600 rounded-full"></span>
               </button>
-              <button @click="setTypeFilter('end')" class="w-full text-left px-4 py-1.5 text-xs text-gray-700 hover:bg-gray-50 flex items-center justify-between" :class="{ 'font-semibold text-red-655 bg-teal-50/50': currentType === 'end' }">
+              <button @click="setTypeFilter('end')" class="w-full text-left px-4 py-1.5 text-xs text-gray-700 hover:bg-gray-50 flex items-center justify-between" :class="{ 'font-semibold text-amber-700 bg-amber-50/50': currentType === 'end' }">
                 <span class="flex items-center gap-2">
-                  <div class="w-1.5 h-1.5 rounded-full bg-red-500"></div>
-                  Kінцеві
+                  <div class="w-1.5 h-1.5 rounded-full bg-amber-500"></div>
+                  Кінцеві
                 </span>
-                <span v-if="currentType === 'end'" class="w-1.5 h-1.5 bg-teal-600 rounded-full"></span>
+                <span v-if="currentType === 'end'" class="w-1.5 h-1.5 bg-amber-600 rounded-full"></span>
               </button>
               <button @click="setTypeFilter('depo')" class="w-full text-left px-4 py-1.5 text-xs text-gray-700 hover:bg-gray-50 flex items-center justify-between rounded-b-xl" :class="{ 'font-semibold text-slate-700 bg-teal-50/50': currentType === 'depo' }">
                 <span class="flex items-center gap-2">
@@ -430,7 +495,6 @@ watch(isDeleteMode, () => {
               <p v-if="validationErrors.name" class="text-xs text-red-500 pl-1 mt-1">{{ validationErrors.name }}</p>
             </div>
 
-            <div class="grid grid-cols-2 gap-4">
               <div class="space-y-1.5">
                 <label class="text-sm font-semibold text-gray-700 pl-1">Тип зупинки <span class="text-red-500">*</span></label>
                 <select
@@ -438,24 +502,38 @@ watch(isDeleteMode, () => {
                   class="w-full bg-[#F8FAFC] border border-gray-200 text-gray-800 text-sm rounded-2xl px-4 py-3 outline-none focus:bg-white focus:border-teal-500 focus:ring-4 focus:ring-teal-50 transition-all appearance-none cursor-pointer"
                 >
                   <option value="normal">Звичайна</option>
-                  <option value="end">Кінцева</option>
                   <option value="depo">Депо</option>
                 </select>
               </div>
 
-              <div class="space-y-1.5">
-                <label class="text-sm font-semibold text-gray-700 pl-1">Кількість платформ</label>
-                <input
-                  v-model="formPlatformsCount"
-                  type="number"
-                  min="1"
-                  class="w-full bg-[#F8FAFC] border text-gray-800 text-sm rounded-2xl px-4 py-3 outline-none focus:bg-white focus:border-teal-500 focus:ring-4 focus:ring-teal-50 transition-all"
-                  :class="validationErrors.platformsCount ? 'border-red-400 focus:border-red-400 focus:ring-red-50' : 'border-gray-200'"
-                  required
-                >
-                <p v-if="validationErrors.platformsCount" class="text-xs text-red-500 pl-1 mt-1">{{ validationErrors.platformsCount }}</p>
+              <!-- Час добирання з наявних депо (тільки якщо тип "Звичайна") -->
+              <div v-if="formType === 'normal' && availableDepots.length > 0" class="space-y-2 p-3.5 bg-amber-50/50 rounded-2xl border border-amber-200/60">
+                <div class="flex items-center gap-1.5 text-xs font-bold text-amber-800">
+                  <SvgIcon name="clock" class="w-4 h-4 text-amber-600" />
+                  <span>Час добирання з депо (хв)</span>
+                </div>
+                <div class="space-y-2">
+                  <div 
+                    v-for="depo in availableDepots" 
+                    :key="depo.stopId"
+                    class="flex items-center justify-between gap-3 bg-white p-2.5 rounded-xl border border-amber-100 shadow-2xs"
+                  >
+                    <span class="text-xs font-semibold text-gray-700 truncate max-w-[200px]" :title="depo.name">
+                      {{ depo.name }}
+                    </span>
+                    <div class="flex items-center gap-1.5 flex-shrink-0">
+                      <input
+                        v-model.number="formDepotTravelTimes[depo.stopId]"
+                        type="number"
+                        min="0"
+                        placeholder="хв"
+                        class="w-16 bg-[#F8FAFC] border border-gray-200 text-gray-800 text-xs text-center font-bold rounded-lg px-2 py-1.5 outline-none focus:bg-white focus:border-teal-500 focus:ring-2 focus:ring-teal-50 transition-all"
+                      />
+                      <span class="text-[11px] text-gray-400 font-medium">хв</span>
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
 
             <div class="grid grid-cols-4 gap-3">
               <div class="col-span-1 space-y-1.5">

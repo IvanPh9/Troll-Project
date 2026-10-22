@@ -1,13 +1,14 @@
 // src/models/stop.js
 
 export class Stop {
-    constructor(stopId, name, type = 'normal', directionCode = 1, directionComment = '', latitude = 0, longitude = 0, platformsCount = 1) {
+    constructor(stopId, name, type = 'normal', directionCode = 1, directionComment = '', latitude = 0, longitude = 0, platformsCount = 1, depotTravelTimes = {}) {
         this.stopId = stopId;
         this.name = name;
         this.type = type; // 'depo', 'end', або 'normal'
         this.directionCode = directionCode; // для однакових назв зупинок - різні коди напрямку
         this.directionComment = directionComment; // коментар до напрямку руху
         this.platformsCount = platformsCount; // кількість платформ на зупинці
+        this.depotTravelTimes = depotTravelTimes || {}; // час доїзду з депо: { [depotStopId]: minutes }
 
         // Гнучке парсування координат "як у Google" (підтримка чисел, comma-separated рядків та посилань Google Maps)
         this.latitude = 0;

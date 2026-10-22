@@ -137,52 +137,8 @@
 
         <!-- Animated Triangle Direction Arrows -->
 
-        <!-- ── "+ Додати ділянку" BUTTON ON RIGHT RAIL ── -->
-        <g :style="{ opacity: (editable && !localBranchMode) ? 1 : 0, pointerEvents: (editable && !localBranchMode) ? 'auto' : 'none', transition: 'opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1)' }">
-          <!-- Grey gradient extension line towards right button -->
-          <line class="anim-line"
-                :x1="layout.rightX" :y1="(layout.rightNodeY[layout.rightNodeY.length - 1] || 0)"
-                :x2="layout.rightX" :y2="rightAddNodeY"
-                stroke="url(#rail-grey-down)" :stroke-width="layout.RAIL_W" stroke-linecap="round" />
-          <g class="anim-row"
-             :style="{ transform: 'translate(0px, ' + rightAddNodeY + 'px)' }"
-             style="cursor:pointer;" @click.stop="$emit('add-node', 'right')">
-            <circle :cx="layout.rightX" cy="0" r="14"
-                    fill="#ffffff" stroke="#9ca3af" stroke-width="2.5"/>
-            <g :transform="'translate(' + (layout.rightX - 5.3) + ', -5.3)'" fill="#6b7280" style="pointer-events:none;">
-              <path transform="scale(0.55)" d="M1.00195 8.36719H6.36328V13.7285C6.36328 14.2734 6.81152 14.7305 7.36523 14.7305C7.91895 14.7305 8.36719 14.2734 8.36719 13.7285V8.36719H13.7285C14.2734 8.36719 14.7305 7.91895 14.7305 7.36523C14.7305 6.81152 14.2734 6.36328 13.7285 6.36328H8.36719V1.00195C8.36719 0.457031 7.91895 0 7.36523 0C6.81152 0 6.36328 0.457031 6.36328 1.00195V6.36328H1.00195C0.457031 6.36328 0 6.81152 0 7.36523C0 7.91895 0.457031 8.36719 1.00195 8.36719Z" />
-            </g>
-            <text :x="layout.rightX + 22" y="4"
-                  font-size="12" font-weight="700" fill="#6b7280" style="pointer-events:none;">Додати ділянку</text>
-          </g>
-        </g>
-        <!-- ── "+ Додати ділянку" BUTTON ON LEFT RAIL ── -->
-        <g :style="{ opacity: (editable && !localBranchMode) ? 1 : 0, pointerEvents: (editable && !localBranchMode) ? 'auto' : 'none', transition: 'opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1)' }">
-          <!-- Grey gradient extension line towards left button -->
-          <line class="anim-line"
-                :x1="layout.leftX" :y1="(layout.leftNodeY[0] || 0)"
-                :x2="layout.leftX" :y2="leftAddNodeY"
-                stroke="url(#rail-grey-up)" :stroke-width="layout.RAIL_W" stroke-linecap="round" />
-          <g class="anim-row"
-             :style="{ transform: 'translate(0px, ' + leftAddNodeY + 'px)' }"
-             style="cursor:pointer;" @click.stop="$emit('add-node', 'left')">
-            <circle :cx="layout.leftX" cy="0" r="14"
-                    fill="#ffffff" stroke="#9ca3af" stroke-width="2.5"/>
-            <g :transform="'translate(' + (layout.leftX - 5.3) + ', -5.3)'" fill="#6b7280" style="pointer-events:none;">
-              <path transform="scale(0.55)" d="M1.00195 8.36719H6.36328V13.7285C6.36328 14.2734 6.81152 14.7305 7.36523 14.7305C7.91895 14.7305 8.36719 14.2734 8.36719 13.7285V8.36719H13.7285C14.2734 8.36719 14.7305 7.91895 14.7305 7.36523C14.7305 6.81152 14.2734 6.36328 13.7285 6.36328H8.36719V1.00195C8.36719 0.457031 7.91895 0 7.36523 0C6.81152 0 6.36328 0.457031 6.36328 1.00195V6.36328H1.00195C0.457031 6.36328 0 6.81152 0 7.36523C0 7.91895 0.457031 8.36719 1.00195 8.36719Z" />
-            </g>
-            <text :x="layout.leftX - 22" y="4"
-                  font-size="12" font-weight="700" fill="#6b7280" text-anchor="end" style="pointer-events:none;">Додати ділянку</text>
-          </g>
-        </g>
-
-        <!-- Top Semicircular Cap (Left to Right arc bowing UP) -->
-        <path :d="'M ' + layout.leftX + ' ' + layout.topY + ' A ' + layout.CAP_R + ' ' + layout.CAP_R + ' 0 0 1 ' + layout.rightX + ' ' + layout.topY"
-              fill="none" :stroke="color" :stroke-width="layout.RAIL_W" stroke-linejoin="round" stroke-linecap="round"/>
-
-
         <!-- Top Arc Arrows -->
-        <g v-if="arcArrows">
+        <g v-if="!isBus && arcArrows">
           <g v-for="arrow in topArcArrows" :key="arrow.key">
             <path :d="'M ' + arrow.startX + ' ' + arrow.startY + ' A ' + layout.CAP_R + ' ' + layout.CAP_R + ' 0 0 ' + arrow.sweep + ' ' + arrow.endX + ' ' + arrow.endY"
                   :stroke="'url(#arc-fade-' + arrow.key + ')'" :stroke-width="layout.RAIL_W" fill="none" />
@@ -190,6 +146,12 @@
             <polygon points="0,-4.5 8,0 0,4.5" :fill="color" :transform="'translate(' + arrow.startX + ', ' + arrow.startY + ') rotate(' + arrow.cutoutRot + ')'" />
           </g>
         </g>
+
+        <!-- White center stripe for Bus (Top Cap) -->
+        <path v-if="isBus"
+              :d="'M ' + layout.rightX + ' ' + layout.topY + ' A ' + layout.CAP_R + ' ' + layout.CAP_R + ' 0 0 0 ' + layout.leftX + ' ' + layout.topY"
+              fill="none" stroke="#ffffff" :stroke-width="busStripeWidth" stroke-linejoin="round" stroke-linecap="round"
+              style="pointer-events:none;"/>
 
         <!-- ── TOP TERMINUS (Кінцева 1, Top Center of Cap) ── -->
         <g v-if="firstNode">
@@ -205,6 +167,13 @@
                 style="pointer-events:none;">
             <tspan>{{ firstNode.isTerminus ? (firstNode.terminusStop || firstNode.name) : firstNode.name }} </tspan><tspan dx="8" font-size="13" font-weight="700" font-style="italic" :fill="color">{{ nodeTravelTimes[firstNode.id] || 0 }} хв</tspan>
           </text>
+          <line v-if="getNodeIssueColor(firstNode.id)"
+                :x1="-getLabelUnderlineWidth(firstNode.isTerminus ? (firstNode.terminusStop || firstNode.name) : firstNode.name) / 2"
+                :y1="layout.topY - layout.CAP_R - 12"
+                :x2="getLabelUnderlineWidth(firstNode.isTerminus ? (firstNode.terminusStop || firstNode.name) : firstNode.name) / 2"
+                :y2="layout.topY - layout.CAP_R - 12"
+                :stroke="getNodeIssueColor(firstNode.id)" stroke-width="2.5" stroke-linecap="round"
+                style="pointer-events:none;" />
           <!-- Icons below top terminus circle -->
           <g v-if="firstNode.isTerminus" :transform="'translate(0, ' + (layout.topY - layout.CAP_R + 22) + ')'">
             <g v-for="(icon, i) in getTerminusIcons(firstNode)" :key="icon.id" :transform="'translate(' + (i * 24 - (getTerminusIcons(firstNode).length - 1) * 12) + ', 0)'">
@@ -219,15 +188,45 @@
           </g>
         </g>
 
+        <!-- ── "+ Додати ділянку" BUTTONS (TOP OVERLAY LAYER: Renders clean on top of all rails & bus stripes) ── -->
+        <!-- Right Rail "+ Додати ділянку" Button -->
+        <g :style="{ opacity: (editable && !localBranchMode) ? 1 : 0, pointerEvents: (editable && !localBranchMode) ? 'auto' : 'none', transition: 'opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1)' }">
+          <g class="anim-row"
+             :style="{ transform: 'translate(0px, ' + rightAddNodeY + 'px)' }"
+             style="cursor:pointer;" @click.stop="$emit('add-node', 'right')">
+            <circle :cx="layout.rightX" cy="0" r="14"
+                    fill="#ffffff" stroke="#9ca3af" stroke-width="2.5"/>
+            <g :transform="'translate(' + (layout.rightX - 4.05) + ', -4.05)'" fill="#6b7280" style="pointer-events:none;">
+              <path transform="scale(0.55)" d="M1.00195 8.36719H6.36328V13.7285C6.36328 14.2734 6.81152 14.7305 7.36523 14.7305C7.91895 14.7305 8.36719 14.2734 8.36719 13.7285V8.36719H13.7285C14.2734 8.36719 14.7305 7.91895 14.7305 7.36523C14.7305 6.81152 14.2734 6.36328 13.7285 6.36328H8.36719V1.00195C8.36719 0.457031 7.91895 0 7.36523 0C6.81152 0 6.36328 0.457031 6.36328 1.00195V6.36328H1.00195C0.457031 6.36328 0 6.81152 0 7.36523C0 7.91895 0.457031 8.36719 1.00195 8.36719Z" />
+            </g>
+            <text :x="layout.rightX + 22" y="4"
+                  font-size="12" font-weight="500" fill="#6b7280" style="pointer-events:none;">Додати ділянку</text>
+          </g>
+        </g>
+
+        <!-- Left Rail "+ Додати ділянку" Button -->
+        <g :style="{ opacity: (editable && !localBranchMode) ? 1 : 0, pointerEvents: (editable && !localBranchMode) ? 'auto' : 'none', transition: 'opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1)' }">
+          <g class="anim-row"
+             :style="{ transform: 'translate(0px, ' + leftAddNodeY + 'px)' }"
+             style="cursor:pointer;" @click.stop="$emit('add-node', 'left')">
+            <circle :cx="layout.leftX" cy="0" r="14"
+                    fill="#ffffff" stroke="#9ca3af" stroke-width="2.5"/>
+            <g :transform="'translate(' + (layout.leftX - 4.05) + ', -4.05)'" fill="#6b7280" style="pointer-events:none;">
+              <path transform="scale(0.55)" d="M1.00195 8.36719H6.36328V13.7285C6.36328 14.2734 6.81152 14.7305 7.36523 14.7305C7.91895 14.7305 8.36719 14.2734 8.36719 13.7285V8.36719H13.7285C14.2734 8.36719 14.7305 7.91895 14.7305 7.36523C14.7305 6.81152 14.2734 6.36328 13.7285 6.36328H8.36719V1.00195C8.36719 0.457031 7.91895 0 7.36523 0C6.81152 0 6.36328 0.457031 6.36328 1.00195V6.36328H1.00195C0.457031 6.36328 0 6.81152 0 7.36523C0 7.91895 0.457031 8.36719 1.00195 8.36719Z" />
+            </g>
+            <text :x="layout.leftX - 22" y="4"
+                  font-size="12" font-weight="500" fill="#6b7280" text-anchor="end" style="pointer-events:none;">Додати ділянку</text>
+          </g>
+        </g>
+
         <!-- ── BOTTOM CAP & TERMINUS GROUP ── -->
         <g class="bottom-cap-group anim-row" :style="{ transform: 'translate(0px, ' + layout.botY + 'px)' }">
           <!-- Bottom Semicircular Cap (Left to Right arc bowing DOWN) -->
           <path :d="'M ' + layout.leftX + ' 0 A ' + layout.CAP_R + ' ' + layout.CAP_R + ' 0 0 0 ' + layout.rightX + ' 0'"
                 fill="none" :stroke="color" :stroke-width="layout.RAIL_W" stroke-linejoin="round" stroke-linecap="round"/>
 
-
           <!-- Bottom Arc Arrows -->
-          <g v-if="arcArrows">
+          <g v-if="!isBus && arcArrows">
             <g v-for="arrow in botArcArrows" :key="arrow.key">
               <path :d="'M ' + arrow.startX + ' ' + (arrow.startY - layout.botY) + ' A ' + layout.CAP_R + ' ' + layout.CAP_R + ' 0 0 ' + arrow.sweep + ' ' + arrow.endX + ' ' + (arrow.endY - layout.botY)"
                     :stroke="'url(#arc-fade-' + arrow.key + ')'" :stroke-width="layout.RAIL_W" fill="none" />
@@ -235,6 +234,12 @@
               <polygon points="0,-4.5 8,0 0,4.5" :fill="color" :transform="'translate(' + arrow.startX + ', ' + (arrow.startY - layout.botY) + ') rotate(' + arrow.cutoutRot + ')'" />
             </g>
           </g>
+
+          <!-- White center stripe for Bus (Bottom Cap) -->
+          <path v-if="isBus"
+                :d="'M ' + layout.leftX + ' 0 A ' + layout.CAP_R + ' ' + layout.CAP_R + ' 0 0 0 ' + layout.rightX + ' 0'"
+                fill="none" stroke="#ffffff" :stroke-width="busStripeWidth" stroke-linejoin="round" stroke-linecap="round"
+                style="pointer-events:none;"/>
 
           <!-- Bottom Terminus (Кінцева 2, Bottom Center of Cap) -->
           <g v-if="lastNode">
@@ -250,8 +255,15 @@
                   style="pointer-events:none;">
               <tspan>{{ lastNode.isTerminus ? (lastNode.terminusStop || lastNode.name) : lastNode.name }} </tspan><tspan dx="8" font-size="13" font-weight="700" font-style="italic" :fill="color">{{ nodeTravelTimes[lastNode.id] || 0 }} хв</tspan>
             </text>
+            <line v-if="getNodeIssueColor(lastNode.id)"
+                  :x1="-getLabelUnderlineWidth(lastNode.isTerminus ? (lastNode.terminusStop || lastNode.name) : lastNode.name) / 2"
+                  :y1="layout.CAP_R + 29"
+                  :x2="getLabelUnderlineWidth(lastNode.isTerminus ? (lastNode.terminusStop || lastNode.name) : lastNode.name) / 2"
+                  :y2="layout.CAP_R + 29"
+                  :stroke="getNodeIssueColor(lastNode.id)" stroke-width="2.5" stroke-linecap="round"
+                  style="pointer-events:none;" />
             <!-- Icons above bottom terminus circle -->
-            <g v-if="lastNode.isTerminus" :transform="'translate(0, ' + (layout.CAP_R - 22) + ')'">
+            <g v-if="lastNode.isTerminus" :transform="'translate(0, ' + (layout.CAP_R - 34) + ')'">
               <g v-for="(icon, i) in getTerminusIcons(lastNode)" :key="icon.id" :transform="'translate(' + (i * 24 - (getTerminusIcons(lastNode).length - 1) * 12) + ', 0)'">
                 <SvgIcon :name="icon.id" :x="icon.x" :y="icon.y" :width="icon.w" :height="icon.h" class="text-gray-800" />
               </g>
@@ -268,6 +280,19 @@
         <!-- ── RIGHT RAIL & SEGMENTS ── -->
         <template v-for="(seg, i) in layout.rightSegments" :key="'rseg-' + seg.id">
 
+          <!-- Grey Overlay for Disabled Main Segment Parts (Right Rail) -->
+          <template v-for="part in getMainSegVisualParts(seg, i, true)" :key="'rdis-' + part.id">
+            <line v-if="part.disabled"
+                  class="anim-line"
+                  :x1="layout.rightX"
+                  :y1="part.y1"
+                  :x2="layout.rightX"
+                  :y2="part.y2"
+                  stroke="#cbd5e1"
+                  :stroke-width="layout.RAIL_W + 0.6"
+                  stroke-linecap="butt"
+                  style="pointer-events:none;" />
+          </template>
 
           <!-- Interval Gradient & Badge (Inside Oval, e.g. 20-25хв) -->
           <template v-if="!hasQuestionBranch(seg)">
@@ -277,16 +302,51 @@
                   :height="layout.rightNodeY[i+1] - layout.rightNodeY[i]"
                   :rx="i === 0 || i === layout.rightSegments.length - 1 ? 12 : 6"
                   fill="url(#interval-fade-right)"
+                  :style="{ opacity: isMainSegFullyDisabled(seg) ? 0.25 : 1 }"
                   :mask="i === 0 ? 'url(#interval-top-arc-mask)' : (i === layout.rightSegments.length - 1 ? 'url(#interval-bot-arc-mask)' : undefined)"
                   :filter="i === 0 || i === layout.rightSegments.length - 1 ? 'url(#interval-diffuse-blur)' : undefined"
-                  style="pointer-events:none;" />
-            <g class="anim-row" :style="{ transform: 'translate(0px, ' + layout.getRightIntervalY(seg, layout.rightNodeY[i], layout.rightNodeY[i+1], i === layout.rightSegments.length - 1, segments.indexOf(seg)) + 'px)' }" style="pointer-events:none;">
-              <text :x="layout.rightX - 25" y="4"
-                    font-size="13" font-weight="800" :fill="color" font-style="italic" text-anchor="end">
+                  style="cursor: pointer;"
+                  @click="zoomToSegment('right', i)" />
+            <g class="anim-row" :style="{ transform: 'translate(0px, ' + layout.getRightIntervalY(seg, layout.rightNodeY[i], layout.rightNodeY[i+1], i === layout.rightSegments.length - 1, segments.indexOf(seg)) + 'px)' }"
+               style="cursor: pointer;"
+               @click="zoomToSegment('right', i)">
+              <text :x="layout.rightX - 25" :y="hasMainSegToggle(seg, i, true) ? -2 : 4"
+                    font-size="13" font-weight="800" :fill="isMainSegFullyDisabled(seg) ? '#9ca3af' : color" font-style="italic" text-anchor="end">
                 {{ (seg.interval && seg.interval !== '0' && seg.interval !== 0 ? seg.interval : '20') + '-' + (seg.intervalMax || '25') + 'хв' }}
               </text>
             </g>
           </template>
+
+          <!-- On-Canvas Chain Toggle Pills for Main Segment Parts (Right Rail, Inside Oval) -->
+          <template v-if="editable && !localBranchMode && localChainToggleMode && hasFinishedBranches">
+            <template v-for="part in getMainSegVisualParts(seg, i, true)" :key="'rtog-' + part.id">
+              <g v-if="shouldShowChainToggle(part.id)"
+                 class="anim-row"
+                 :style="{ transform: 'translate(' + (layout.rightX - 50) + 'px, ' + part.toggleY + 'px)' }"
+                 style="cursor: pointer;"
+                 :title="part.disabled ? 'Увімкнути ділянку (від з\'єднання до з\'єднання)' : 'Вимкнути ділянку (від з\'єднання до з\'єднання)'"
+                 @click.stop="$emit('toggle-chain', part.id)">
+                <rect x="-13" y="-7" width="26" height="14" rx="7"
+                      :fill="part.disabled ? '#f1f5f9' : '#ecfdf5'"
+                      :stroke="part.disabled ? '#94a3b8' : '#10b981'"
+                      stroke-width="1.2" />
+                <circle :cx="part.disabled ? -6 : 6" cy="0" r="4.2"
+                        :fill="part.disabled ? '#94a3b8' : '#10b981'" />
+              </g>
+            </template>
+          </template>
+
+          <!-- Segment Validation Side Line with Small Gap (Right Rail) -->
+          <line v-if="getSegmentIssueColor(seg.id)"
+                class="anim-line"
+                :x1="layout.rightX - layout.RAIL_W / 2 - 4"
+                :y1="layout.rightNodeY[i] + 14"
+                :x2="layout.rightX - layout.RAIL_W / 2 - 4"
+                :y2="Math.max(layout.rightNodeY[i] + 18, layout.rightNodeY[i+1] - 14)"
+                :stroke="getSegmentIssueColor(seg.id)"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                style="pointer-events:none;" />
 
           <!-- Clickable Overlay for Zooming -->
           <rect :x="layout.rightX - 8"
@@ -302,11 +362,11 @@
              :style="{ transform: 'translate(0px, ' + layout.stopY(seg, layout.rightNodeY[i], layout.rightNodeY[i+1], stIdx, i === layout.rightSegments.length - 1, segments.indexOf(seg)) + 'px)' }"
              style="cursor:pointer;"
              @click.stop="zoomToSegment('right', i)">
-            <line :x1="layout.rightX" y1="0"
+            <line :x1="layout.rightX + (isBus ? 2.5 : 0)" y1="0"
                   :x2="layout.rightX + 12" y2="0"
-                  :stroke="color" stroke-width="4.5" stroke-linecap="square"/>
+                  :stroke="isStopDisabled(stop.id) ? '#cbd5e1' : color" stroke-width="4.5" stroke-linecap="square"/>
             <text :x="layout.rightX + 18" y="4"
-                  font-size="12" font-weight="500" fill="#111827">
+                  font-size="12" font-weight="500" :fill="isStopDisabled(stop.id) ? '#9ca3af' : '#111827'">
               <template v-if="splitStopName(stop.name).length > 1">
                 <tspan :x="layout.rightX + 18" dy="0">{{ splitStopName(stop.name)[0] }}</tspan>
                 <tspan :x="layout.rightX + 18" dy="16">{{ splitStopName(stop.name)[1] }}</tspan>
@@ -315,6 +375,13 @@
                 {{ stop.name }}
               </template>
             </text>
+            <line v-if="getStopIssueColor(stop.id)"
+                  :x1="layout.rightX + 18"
+                  :y1="splitStopName(stop.name).length > 1 ? 25 : 9"
+                  :x2="layout.rightX + 18 + getLabelUnderlineWidth(stop.name)"
+                  :y2="splitStopName(stop.name).length > 1 ? 25 : 9"
+                  :stroke="getStopIssueColor(stop.id)" stroke-width="2" stroke-linecap="round"
+                  style="pointer-events:none;" />
           </g>
 
 
@@ -372,15 +439,14 @@
           <template v-for="(br, brIdx) in branchesForSeg(segments.indexOf(seg))" :key="'rbr-' + br.id">
             <path v-if="br.finished"
                   :d="getRightBranchFinishedPath(br, i).d"
-                  fill="none" style="cursor:pointer;" @click.stop="selectBranchSection(br, 0, i, true)" :stroke="color" :stroke-width="layout.RAIL_W" stroke-linejoin="round" stroke-linecap="round"/>
+                  fill="none" style="cursor:pointer;" @click.stop="selectBranchSection(br, 0, i, true)" :stroke="isBranchDisabled(br) ? '#cbd5e1' : color" :stroke-width="layout.RAIL_W" stroke-linejoin="round" stroke-linecap="round"/>
             <path v-else
                   :d="getBranchOutPath(layout.rightX, layout.rightNodeY[i], getBranchDx(br), 1, 1, getBranchEndpointY(br, i, true))"
-                  fill="none" style="cursor:pointer;" @click.stop="selectBranchSection(br, 0, i, true)" :stroke="color" :stroke-width="layout.RAIL_W" stroke-linejoin="round" stroke-linecap="round"/>
+                  fill="none" style="cursor:pointer;" @click.stop="selectBranchSection(br, 0, i, true)" :stroke="isBranchDisabled(br) ? '#cbd5e1' : color" :stroke-width="layout.RAIL_W" stroke-linejoin="round" stroke-linecap="round"/>
 
             <!-- Branch Direction Arrow (Right) -->
-            <g class="anim-row" :style="{ transform: 'translate(' + (layout.rightX + getBranchDx(br)) + 'px, ' + (layout.rightNodeY[i] + 44) + 'px) rotate(90deg)', transition: 'all 0.6s cubic-bezier(0.4, 0, 0.2, 1)' }">
-              <polygon points="0,-4.5 42,-4.5 50,0 42,4.5 0,4.5" fill="url(#arrow-fade)" />
-              <polygon points="0,-4.5 8,0 0,4.5" :fill="color" />
+            <g v-if="!isBus && !isBranchDisabled(br)" class="anim-row" :style="{ transform: 'translate(' + (layout.rightX + (38.62 + getBranchDx(br) - 16) / 2 - 25) + 'px, ' + (layout.rightNodeY[i] + 32) + 'px)', transition: 'all 0.6s cubic-bezier(0.4, 0, 0.2, 1)' }">
+              <polygon points="8,0 0,-4.5 42,-4.5 50,0 42,4.5 0,4.5" fill="url(#arrow-fade)" />
             </g>
 
             <!-- Finish Branch Icon (Right) - Positioned below the control node -->
@@ -391,21 +457,19 @@
             </g>
 
 
-            <!-- Branch Control Nodes -->
-            <g v-for="(bNode, bNIdx) in br.nodes || []" :key="'rbrn-' + bNode.id" style="cursor:pointer;"
-               @click.stop="$emit('edit-branch-node', br.id, bNIdx)">
-              <template v-if="bNode.name && bNode.name !== 'Контрольна (альтернатива)'">
-                <circle :cx="layout.rightX + getBranchDx(br)"
-                        :cy="getBranchNodeY(br, bNIdx, i, true)"
-                        r="9" fill="#ffffff" :stroke="color" stroke-width="3"/>
-                <text :x="layout.rightX + getBranchDx(br) + 18"
-                      :y="getBranchNodeY(br, bNIdx, i, true) + 4"
-                      font-size="13" font-weight="700" fill="#111827">{{ bNode.name }}</text>
-              </template>
-            </g>
-
             <!-- Branch Stops (Per Section) -->
             <template v-for="secIdx in (getBranchNodesLength(br) + 1)" :key="'rbrsec-' + secIdx">
+              <!-- Branch Section Validation Side Line with Small Gap (Right) -->
+              <line v-if="br.sections?.[secIdx - 1] && getSegmentIssueColor(br.sections[secIdx - 1].id)"
+                    :x1="layout.rightX + getBranchDx(br) - layout.RAIL_W / 2 - 4"
+                    :y1="getBranchValidationLineY1(br, secIdx, i, true)"
+                    :x2="layout.rightX + getBranchDx(br) - layout.RAIL_W / 2 - 4"
+                    :y2="getBranchValidationLineY2(br, secIdx, i, true)"
+                    :stroke="getSegmentIssueColor(br.sections[secIdx - 1].id)"
+                    stroke-width="2.5"
+                    stroke-linecap="round"
+                    style="pointer-events:none;" />
+
               <!-- Clickable Branch Section Overlay (Right) -->
               <rect :x="layout.rightX + getBranchDx(br) - 12"
                     :y="Math.min(getBranchSectionStartY(br, secIdx, i, true), getBranchSectionEndY(br, secIdx, i, true))"
@@ -424,25 +488,42 @@
                       :height="getBranchGradientHeight(br, secIdx, i, true)"
                       rx="6"
                       fill="url(#interval-fade-right)"
+                      :style="{ opacity: isBranchSectionDisabled(br, secIdx - 1) ? 0.25 : 1 }"
                       style="pointer-events:none;" />
                 <g class="anim-row" :style="{ transform: 'translate(0px, ' + getBranchSectionIntervalY(br, secIdx, i, true) + 'px)' }" style="pointer-events:none;">
-                  <text :x="layout.rightX + getBranchDx(br) - 25" y="4"
-                        font-size="13" font-weight="800" :fill="color" font-style="italic" text-anchor="end">
+                  <text :x="layout.rightX + getBranchDx(br) - 25"
+                        :y="(editable && !localBranchMode && br.finished && br.sections?.[secIdx - 1] && shouldShowChainToggle(br.sections[secIdx - 1].id)) ? -2 : 4"
+                        font-size="13" font-weight="800" :fill="isBranchSectionDisabled(br, secIdx - 1) ? '#9ca3af' : color" font-style="italic" text-anchor="end">
                     {{ getBranchSectionIntervalText(br, secIdx - 1) }}
                   </text>
                 </g>
               </template>
 
+              <!-- On-Canvas Chain Toggle Pill for Right Branch Section -->
+              <g v-if="editable && !localBranchMode && br.finished && br.sections?.[secIdx - 1] && shouldShowChainToggle(br.sections[secIdx - 1].id)"
+                 class="anim-row"
+                 :style="{ transform: 'translate(' + (layout.rightX + getBranchDx(br) - 50) + 'px, ' + (getBranchSectionIntervalY(br, secIdx, i, true) + 11) + 'px)' }"
+                 style="cursor: pointer;"
+                 :title="isBranchSectionDisabled(br, secIdx - 1) ? 'Увімкнути альтернативу (від з\'єднання до з\'єднання)' : 'Вимкнути альтернативу (від з\'єднання до з\'єднання)'"
+                 @click.stop="$emit('toggle-chain', br.sections[secIdx - 1].id)">
+                <rect x="-13" y="-7" width="26" height="14" rx="7"
+                      :fill="isBranchSectionDisabled(br, secIdx - 1) ? '#f1f5f9' : '#ecfdf5'"
+                      :stroke="isBranchSectionDisabled(br, secIdx - 1) ? '#94a3b8' : '#10b981'"
+                      stroke-width="1.2" />
+                <circle :cx="isBranchSectionDisabled(br, secIdx - 1) ? -6 : 6" cy="0" r="4.2"
+                        :fill="isBranchSectionDisabled(br, secIdx - 1) ? '#94a3b8' : '#10b981'" />
+              </g>
+
               <g v-for="(bStop, bStIdx) in getBranchSectionStops(br, secIdx)" :key="'rbrst-' + bStop.id" style="cursor:pointer;"
                  @click.stop="selectBranchSection(br, secIdx - 1, i, true)">
-                <line :x1="layout.rightX + getBranchDx(br)"
+                <line :x1="layout.rightX + getBranchDx(br) + (isBus ? 2.5 : 0)"
                       :y1="getBranchStopY(br, secIdx, bStIdx, i, true)"
                       :x2="layout.rightX + getBranchDx(br) + 12"
                       :y2="getBranchStopY(br, secIdx, bStIdx, i, true)"
-                      :stroke="color" stroke-width="4.5" stroke-linecap="square"/>
+                      :stroke="isBranchSectionDisabled(br, secIdx - 1) ? '#cbd5e1' : color" stroke-width="4.5" stroke-linecap="square"/>
                 <text :x="layout.rightX + getBranchDx(br) + 18"
                       :y="getBranchStopY(br, secIdx, bStIdx, i, true) + 4"
-                      font-size="12" font-weight="500" fill="#111827">
+                      font-size="12" font-weight="500" :fill="isBranchSectionDisabled(br, secIdx - 1) ? '#9ca3af' : '#111827'">
                   <template v-if="splitStopName(bStop.name).length > 1">
                     <tspan :x="layout.rightX + getBranchDx(br) + 18" dy="0">{{ splitStopName(bStop.name)[0] }}</tspan>
                     <tspan :x="layout.rightX + getBranchDx(br) + 18" dy="16">{{ splitStopName(bStop.name)[1] }}</tspan>
@@ -451,6 +532,13 @@
                     {{ bStop.name }}
                   </template>
                 </text>
+                <line v-if="getStopIssueColor(bStop.id)"
+                      :x1="layout.rightX + getBranchDx(br) + 18"
+                      :y1="getBranchStopY(br, secIdx, bStIdx, i, true) + (splitStopName(bStop.name).length > 1 ? 25 : 9)"
+                      :x2="layout.rightX + getBranchDx(br) + 18 + getLabelUnderlineWidth(bStop.name)"
+                      :y2="getBranchStopY(br, secIdx, bStIdx, i, true) + (splitStopName(bStop.name).length > 1 ? 25 : 9)"
+                      :stroke="getStopIssueColor(bStop.id)" stroke-width="2" stroke-linecap="round"
+                      style="pointer-events:none;" />
               </g>
               <!-- Apple-style Unified Add Pill (Right Branch) -->
               <g class="anim-row"
@@ -498,20 +586,69 @@
                 </g>
               </g>
             </template>
+
+            <!-- Branch Control Nodes (Rendered on top of section overlays) -->
+            <g v-for="(bNode, bNIdx) in br.nodes || []" :key="'rbrn-' + bNode.id" style="cursor:pointer;"
+               @click.stop="$emit('edit-branch-node', br.id, bNIdx)">
+              <template v-if="bNode.name && bNode.name !== 'Контрольна (альтернатива)'">
+                <circle :cx="layout.rightX + getBranchDx(br)"
+                        :cy="getBranchNodeY(br, bNIdx, i, true)"
+                        r="9" fill="#ffffff" :stroke="isNodeDisabled(bNode.id) ? '#cbd5e1' : color" stroke-width="3"/>
+                <text :x="layout.rightX + getBranchDx(br) + 18"
+                      :y="getBranchNodeY(br, bNIdx, i, true) + 4"
+                      font-size="13" font-weight="700" :fill="isNodeDisabled(bNode.id) ? '#9ca3af' : '#111827'">
+                  <tspan>{{ bNode.name }} </tspan>
+                  <tspan v-if="nodeTravelTimes[bNode.id] !== undefined" dx="6" font-size="13" font-weight="700" font-style="italic" :fill="isNodeDisabled(bNode.id) ? '#9ca3af' : color">{{ nodeTravelTimes[bNode.id] }} хв</tspan>
+                </text>
+                <line v-if="getNodeIssueColor(bNode.id)"
+                      :x1="layout.rightX + getBranchDx(br) + 18"
+                      :y1="getBranchNodeY(br, bNIdx, i, true) + 9"
+                      :x2="layout.rightX + getBranchDx(br) + 18 + getLabelUnderlineWidth(bNode.name)"
+                      :y2="getBranchNodeY(br, bNIdx, i, true) + 9"
+                      :stroke="getNodeIssueColor(bNode.id)" stroke-width="2.5" stroke-linecap="round"
+                      style="pointer-events:none;" />
+              </template>
+            </g>
+          </template>
+
+          <!-- Active Blue Main Rail over Disabled Branch Merge Points (Right Rail) -->
+          <template v-for="part in getMainSegVisualParts(seg, i, true)" :key="'ract-' + part.id">
+            <line v-if="!part.disabled"
+                  class="anim-line"
+                  :x1="layout.rightX"
+                  :y1="part.y1"
+                  :x2="layout.rightX"
+                  :y2="part.y2"
+                  :stroke="color"
+                  :stroke-width="layout.RAIL_W"
+                  stroke-linecap="butt"
+                  style="pointer-events:none;" />
           </template>
 
           <!-- Direction Arrow (Gradient Stripe Style) -->
-          <g v-if="i > 0" class="anim-row"
-             :style="{ opacity: ((editable && !localBranchMode) || (seg.stops && seg.stops.length >= 2)) ? 1 : 0, transform: 'translate(' + layout.rightX + 'px, ' + (layout.rightNodeY[i] + 25) + 'px) rotate(90deg)', transition: 'all 0.6s cubic-bezier(0.4, 0, 0.2, 1)' }"
+          <g v-if="shouldShowRightArrow(seg, i)" class="anim-row"
+             :style="{ transform: 'translate(' + layout.rightX + 'px, ' + (layout.rightNodeY[i] + 25) + 'px) rotate(90deg)', transition: 'all 0.6s cubic-bezier(0.4, 0, 0.2, 1)' }"
              style="pointer-events:none;">
-            <polygon points="0,-4.5 42,-4.5 50,0 42,4.5 0,4.5" fill="url(#arrow-fade)" />
-            <polygon points="0,-4.5 8,0 0,4.5" :fill="color" />
+            <polygon points="8,0 0,-4.5 42,-4.5 50,0 42,4.5 0,4.5" fill="url(#arrow-fade)" />
           </g>
         </template>
 
         <!-- ── LEFT RAIL & SEGMENTS ── -->
         <template v-for="(seg, i) in layout.leftSegments" :key="'lseg-' + seg.id">
 
+          <!-- Grey Overlay for Disabled Main Segment Parts (Left Rail) -->
+          <template v-for="part in getMainSegVisualParts(seg, i, false)" :key="'ldis-' + part.id">
+            <line v-if="part.disabled"
+                  class="anim-line"
+                  :x1="layout.leftX"
+                  :y1="part.y1"
+                  :x2="layout.leftX"
+                  :y2="part.y2"
+                  stroke="#cbd5e1"
+                  :stroke-width="layout.RAIL_W + 0.6"
+                  stroke-linecap="butt"
+                  style="pointer-events:none;" />
+          </template>
 
           <!-- Interval Gradient & Badge (Inside Oval, e.g. 20-25хв) -->
           <template v-if="!hasQuestionBranch(seg)">
@@ -521,16 +658,51 @@
                   :height="layout.leftNodeY[i+1] - layout.leftNodeY[i]"
                   :rx="i === 0 || i === layout.leftSegments.length - 1 ? 12 : 6"
                   fill="url(#interval-fade-left)"
+                  :style="{ opacity: isMainSegFullyDisabled(seg) ? 0.25 : 1 }"
                   :mask="i === 0 ? 'url(#interval-top-arc-mask)' : (i === layout.leftSegments.length - 1 ? 'url(#interval-bot-arc-mask)' : undefined)"
                   :filter="i === 0 || i === layout.leftSegments.length - 1 ? 'url(#interval-diffuse-blur)' : undefined"
-                  style="pointer-events:none;" />
-            <g class="anim-row" :style="{ transform: 'translate(0px, ' + layout.getLeftIntervalY(seg, layout.leftNodeY[i], layout.leftNodeY[i+1], i === layout.leftSegments.length - 1, segments.indexOf(seg)) + 'px)' }" style="pointer-events:none;">
-              <text :x="layout.leftX + 25" y="4"
-                    font-size="13" font-weight="800" :fill="color" font-style="italic">
+                  style="cursor: pointer;"
+                  @click="zoomToSegment('left', i)" />
+            <g class="anim-row" :style="{ transform: 'translate(0px, ' + layout.getLeftIntervalY(seg, layout.leftNodeY[i], layout.leftNodeY[i+1], i === layout.leftSegments.length - 1, segments.indexOf(seg)) + 'px)' }"
+               style="cursor: pointer;"
+               @click="zoomToSegment('left', i)">
+              <text :x="layout.leftX + 25" :y="hasMainSegToggle(seg, i, false) ? -2 : 4"
+                    font-size="13" font-weight="800" :fill="isMainSegFullyDisabled(seg) ? '#9ca3af' : color" font-style="italic">
                 {{ (seg.interval && seg.interval !== '0' && seg.interval !== 0 ? seg.interval : '20') + '-' + (seg.intervalMax || '25') + 'хв' }}
               </text>
             </g>
           </template>
+
+          <!-- On-Canvas Chain Toggle Pills for Main Segment Parts (Left Rail, Inside Oval) -->
+          <template v-if="editable && !localBranchMode && localChainToggleMode && hasFinishedBranches">
+            <template v-for="part in getMainSegVisualParts(seg, i, false)" :key="'ltog-' + part.id">
+              <g v-if="shouldShowChainToggle(part.id)"
+                 class="anim-row"
+                 :style="{ transform: 'translate(' + (layout.leftX + 50) + 'px, ' + part.toggleY + 'px)' }"
+                 style="cursor: pointer;"
+                 :title="part.disabled ? 'Увімкнути ділянку (від з\'єднання до з\'єднання)' : 'Вимкнути ділянку (від з\'єднання до з\'єднання)'"
+                 @click.stop="$emit('toggle-chain', part.id)">
+                <rect x="-13" y="-7" width="26" height="14" rx="7"
+                      :fill="part.disabled ? '#f1f5f9' : '#ecfdf5'"
+                      :stroke="part.disabled ? '#94a3b8' : '#10b981'"
+                      stroke-width="1.2" />
+                <circle :cx="part.disabled ? -6 : 6" cy="0" r="4.2"
+                        :fill="part.disabled ? '#94a3b8' : '#10b981'" />
+              </g>
+            </template>
+          </template>
+
+          <!-- Segment Validation Side Line with Small Gap (Left Rail) -->
+          <line v-if="getSegmentIssueColor(seg.id)"
+                class="anim-line"
+                :x1="layout.leftX + layout.RAIL_W / 2 + 4"
+                :y1="layout.leftNodeY[i] + 14"
+                :x2="layout.leftX + layout.RAIL_W / 2 + 4"
+                :y2="Math.max(layout.leftNodeY[i] + 18, layout.leftNodeY[i+1] - 14)"
+                :stroke="getSegmentIssueColor(seg.id)"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                style="pointer-events:none;" />
 
           <!-- Clickable Overlay for Zooming -->
           <rect :x="layout.leftX - 8"
@@ -546,11 +718,11 @@
              :style="{ transform: 'translate(0px, ' + layout.stopY(seg, layout.leftNodeY[i], layout.leftNodeY[i+1], stIdx, i === layout.leftSegments.length - 1, segments.indexOf(seg)) + 'px)' }"
              style="cursor:pointer;"
              @click.stop="zoomToSegment('left', i)">
-            <line :x1="layout.leftX" y1="0"
+            <line :x1="layout.leftX - (isBus ? 2.5 : 0)" y1="0"
                   :x2="layout.leftX - 12" y2="0"
-                  :stroke="color" stroke-width="4.5" stroke-linecap="square"/>
+                  :stroke="isStopDisabled(st.id) ? '#cbd5e1' : color" stroke-width="4.5" stroke-linecap="square"/>
             <text :x="layout.leftX - 18" y="4"
-                  font-size="12" font-weight="500" fill="#111827" text-anchor="end">
+                  font-size="12" font-weight="500" :fill="isStopDisabled(st.id) ? '#9ca3af' : '#111827'" text-anchor="end">
               <template v-if="splitStopName(st.name).length > 1">
                 <tspan :x="layout.leftX - 18" dy="0">{{ splitStopName(st.name)[0] }}</tspan>
                 <tspan :x="layout.leftX - 18" dy="16">{{ splitStopName(st.name)[1] }}</tspan>
@@ -559,6 +731,13 @@
                 {{ st.name }}
               </template>
             </text>
+            <line v-if="getStopIssueColor(st.id)"
+                  :x1="layout.leftX - 18 - getLabelUnderlineWidth(st.name)"
+                  :y1="splitStopName(st.name).length > 1 ? 25 : 9"
+                  :x2="layout.leftX - 18"
+                  :y2="splitStopName(st.name).length > 1 ? 25 : 9"
+                  :stroke="getStopIssueColor(st.id)" stroke-width="2" stroke-linecap="round"
+                  style="pointer-events:none;" />
           </g>
           <!-- Unified Add Pills (Left Rail) -->
           <template v-if="editable && !localBranchMode">
@@ -613,15 +792,14 @@
           <template v-for="(br, brIdx) in branchesForSeg(segments.indexOf(seg))" :key="'lbr-' + br.id">
             <path v-if="br.finished"
                   :d="getLeftBranchFinishedPath(br, i).d"
-                  fill="none" style="cursor:pointer;" @click.stop="selectBranchSection(br, 0, i, false)" :stroke="color" :stroke-width="layout.RAIL_W" stroke-linejoin="round" stroke-linecap="round"/>
+                  fill="none" style="cursor:pointer;" @click.stop="selectBranchSection(br, 0, i, false)" :stroke="isBranchDisabled(br) ? '#cbd5e1' : color" :stroke-width="layout.RAIL_W" stroke-linejoin="round" stroke-linecap="round"/>
             <path v-else
                   :d="getBranchOutPath(layout.leftX, layout.leftNodeY[i+1], getBranchDx(br), -1, -1, getBranchEndpointY(br, i, false))"
-                  fill="none" style="cursor:pointer;" @click.stop="selectBranchSection(br, 0, i, false)" :stroke="color" :stroke-width="layout.RAIL_W" stroke-linejoin="round" stroke-linecap="round"/>
+                  fill="none" style="cursor:pointer;" @click.stop="selectBranchSection(br, 0, i, false)" :stroke="isBranchDisabled(br) ? '#cbd5e1' : color" :stroke-width="layout.RAIL_W" stroke-linejoin="round" stroke-linecap="round"/>
 
             <!-- Branch Direction Arrow (Left) -->
-            <g class="anim-row" :style="{ transform: 'translate(' + (layout.leftX - getBranchDx(br)) + 'px, ' + (layout.leftNodeY[i+1] - 44) + 'px) rotate(-90deg)', transition: 'all 0.6s cubic-bezier(0.4, 0, 0.2, 1)' }">
-              <polygon points="0,-4.5 42,-4.5 50,0 42,4.5 0,4.5" fill="url(#arrow-fade)" />
-              <polygon points="0,-4.5 8,0 0,4.5" :fill="color" />
+            <g v-if="!isBus && !isBranchDisabled(br)" class="anim-row" :style="{ transform: 'translate(' + (layout.leftX - (38.62 + getBranchDx(br) - 16) / 2 + 25) + 'px, ' + (layout.leftNodeY[i+1] - 32) + 'px) rotate(180deg)', transition: 'all 0.6s cubic-bezier(0.4, 0, 0.2, 1)' }">
+              <polygon points="8,0 0,-4.5 42,-4.5 50,0 42,4.5 0,4.5" fill="url(#arrow-fade)" />
             </g>
 
             <!-- Finish Branch Icon (Left) - Positioned below the control node -->
@@ -633,21 +811,19 @@
 
 
 
-            <!-- Branch Control Nodes -->
-            <g v-for="(bNode, bNIdx) in br.nodes || []" :key="'lbrn-' + bNode.id" style="cursor:pointer;"
-               @click.stop="$emit('edit-branch-node', br.id, bNIdx)">
-              <template v-if="bNode.name && bNode.name !== 'Контрольна (альтернатива)'">
-                <circle :cx="layout.leftX - getBranchDx(br)"
-                        :cy="getBranchNodeY(br, bNIdx, i, false)"
-                        r="9" fill="#f5f5f5" :stroke="color" stroke-width="3"/>
-                <text :x="layout.leftX - getBranchDx(br) - 18"
-                      :y="getBranchNodeY(br, bNIdx, i, false) + 4"
-                      font-size="13" font-weight="700" fill="#111827" text-anchor="end">{{ bNode.name }}</text>
-              </template>
-            </g>
-
             <!-- Branch Stops (Per Section) -->
             <template v-for="secIdx in (getBranchNodesLength(br) + 1)" :key="'lbrsec-' + secIdx">
+              <!-- Branch Section Validation Side Line with Small Gap (Left) -->
+              <line v-if="br.sections?.[secIdx - 1] && getSegmentIssueColor(br.sections[secIdx - 1].id)"
+                    :x1="layout.leftX - getBranchDx(br) + layout.RAIL_W / 2 + 4"
+                    :y1="getBranchValidationLineY1(br, secIdx, i, false)"
+                    :x2="layout.leftX - getBranchDx(br) + layout.RAIL_W / 2 + 4"
+                    :y2="getBranchValidationLineY2(br, secIdx, i, false)"
+                    :stroke="getSegmentIssueColor(br.sections[secIdx - 1].id)"
+                    stroke-width="2.5"
+                    stroke-linecap="round"
+                    style="pointer-events:none;" />
+
               <!-- Clickable Branch Section Overlay (Left) -->
               <rect :x="layout.leftX - getBranchDx(br) - 12"
                     :y="Math.min(getBranchSectionStartY(br, secIdx, i, false), getBranchSectionEndY(br, secIdx, i, false))"
@@ -666,24 +842,42 @@
                       :height="getBranchGradientHeight(br, secIdx, i, false)"
                       rx="6"
                       fill="url(#interval-fade-left)"
+                      :style="{ opacity: isBranchSectionDisabled(br, secIdx - 1) ? 0.25 : 1 }"
                       style="pointer-events:none;" />
                 <g class="anim-row" :style="{ transform: 'translate(0px, ' + getBranchSectionIntervalY(br, secIdx, i, false) + 'px)' }" style="pointer-events:none;">
-                  <text :x="layout.leftX - getBranchDx(br) + 25" y="4"
-                        font-size="13" font-weight="800" :fill="color" font-style="italic" text-anchor="start">
+                  <text :x="layout.leftX - getBranchDx(br) + 25"
+                        :y="(editable && !localBranchMode && br.finished && br.sections?.[secIdx - 1] && shouldShowChainToggle(br.sections[secIdx - 1].id)) ? -2 : 4"
+                        font-size="13" font-weight="800" :fill="isBranchSectionDisabled(br, secIdx - 1) ? '#9ca3af' : color" font-style="italic" text-anchor="start">
                     {{ getBranchSectionIntervalText(br, secIdx - 1) }}
                   </text>
                 </g>
               </template>
+
+              <!-- On-Canvas Chain Toggle Pill for Left Branch Section -->
+              <g v-if="editable && !localBranchMode && br.finished && br.sections?.[secIdx - 1] && shouldShowChainToggle(br.sections[secIdx - 1].id)"
+                 class="anim-row"
+                 :style="{ transform: 'translate(' + (layout.leftX - getBranchDx(br) + 50) + 'px, ' + (getBranchSectionIntervalY(br, secIdx, i, false) + 11) + 'px)' }"
+                 style="cursor: pointer;"
+                 :title="isBranchSectionDisabled(br, secIdx - 1) ? 'Увімкнути альтернативу (від з\'єднання до з\'єднання)' : 'Вимкнути альтернативу (від з\'єднання до з\'єднання)'"
+                 @click.stop="$emit('toggle-chain', br.sections[secIdx - 1].id)">
+                <rect x="-13" y="-7" width="26" height="14" rx="7"
+                      :fill="isBranchSectionDisabled(br, secIdx - 1) ? '#f1f5f9' : '#ecfdf5'"
+                      :stroke="isBranchSectionDisabled(br, secIdx - 1) ? '#94a3b8' : '#10b981'"
+                      stroke-width="1.2" />
+                <circle :cx="isBranchSectionDisabled(br, secIdx - 1) ? -6 : 6" cy="0" r="4.2"
+                        :fill="isBranchSectionDisabled(br, secIdx - 1) ? '#94a3b8' : '#10b981'" />
+              </g>
+
               <g v-for="(bStop, bStIdx) in getBranchSectionStops(br, secIdx)" :key="'lbrst-' + bStop.id" style="cursor:pointer;"
                  @click.stop="selectBranchSection(br, secIdx - 1, i, false)">
-                <line :x1="layout.leftX - getBranchDx(br)"
+                <line :x1="layout.leftX - getBranchDx(br) - (isBus ? 2.5 : 0)"
                       :y1="getBranchStopY(br, secIdx, bStIdx, i, false)"
                       :x2="layout.leftX - getBranchDx(br) - 12"
                       :y2="getBranchStopY(br, secIdx, bStIdx, i, false)"
-                      :stroke="color" stroke-width="4.5" stroke-linecap="square"/>
+                      :stroke="isBranchSectionDisabled(br, secIdx - 1) ? '#cbd5e1' : color" stroke-width="4.5" stroke-linecap="square"/>
                 <text :x="layout.leftX - getBranchDx(br) - 18"
                       :y="getBranchStopY(br, secIdx, bStIdx, i, false) + 4"
-                      font-size="12" font-weight="500" fill="#111827" text-anchor="end">
+                      font-size="12" font-weight="500" :fill="isBranchSectionDisabled(br, secIdx - 1) ? '#9ca3af' : '#111827'" text-anchor="end">
                   <template v-if="splitStopName(bStop.name).length > 1">
                     <tspan :x="layout.leftX - getBranchDx(br) - 18" dy="0">{{ splitStopName(bStop.name)[0] }}</tspan>
                     <tspan :x="layout.leftX - getBranchDx(br) - 18" dy="16">{{ splitStopName(bStop.name)[1] }}</tspan>
@@ -692,6 +886,13 @@
                     {{ bStop.name }}
                   </template>
                 </text>
+                <line v-if="getStopIssueColor(bStop.id)"
+                      :x1="layout.leftX - getBranchDx(br) - 18 - getLabelUnderlineWidth(bStop.name)"
+                      :y1="getBranchStopY(br, secIdx, bStIdx, i, false) + (splitStopName(bStop.name).length > 1 ? 25 : 9)"
+                      :x2="layout.leftX - getBranchDx(br) - 18"
+                      :y2="getBranchStopY(br, secIdx, bStIdx, i, false) + (splitStopName(bStop.name).length > 1 ? 25 : 9)"
+                      :stroke="getStopIssueColor(bStop.id)" stroke-width="2" stroke-linecap="round"
+                      style="pointer-events:none;" />
               </g>
               <g class="anim-row"
                  :style="{ opacity: (editable && !localBranchMode) ? 1 : 0, pointerEvents: (editable && !localBranchMode) ? 'auto' : 'none', transition: 'opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1)', transform: 'translate(' + (layout.leftX - getBranchDx(br) - 16) + 'px, ' + getBranchAddStopY(br, secIdx, i, false) + 'px)' }">
@@ -738,16 +939,162 @@
                 </g>
               </g>
             </template>
+
+            <!-- Branch Control Nodes (Rendered on top of section overlays) -->
+            <g v-for="(bNode, bNIdx) in br.nodes || []" :key="'lbrn-' + bNode.id" style="cursor:pointer;"
+               @click.stop="$emit('edit-branch-node', br.id, bNIdx)">
+              <template v-if="bNode.name && bNode.name !== 'Контрольна (альтернатива)'">
+                <circle :cx="layout.leftX - getBranchDx(br)"
+                        :cy="getBranchNodeY(br, bNIdx, i, false)"
+                        r="9" fill="#f5f5f5" :stroke="isNodeDisabled(bNode.id) ? '#cbd5e1' : color" stroke-width="3"/>
+                <text :x="layout.leftX - getBranchDx(br) - 18"
+                      :y="getBranchNodeY(br, bNIdx, i, false) + 4"
+                      font-size="13" font-weight="700" :fill="isNodeDisabled(bNode.id) ? '#9ca3af' : '#111827'" text-anchor="end">
+                  <tspan>{{ bNode.name }} </tspan>
+                  <tspan v-if="nodeTravelTimes[bNode.id] !== undefined" dx="6" font-size="13" font-weight="700" font-style="italic" :fill="isNodeDisabled(bNode.id) ? '#9ca3af' : color">{{ nodeTravelTimes[bNode.id] }} хв</tspan>
+                </text>
+                <line v-if="getNodeIssueColor(bNode.id)"
+                      :x1="layout.leftX - getBranchDx(br) - 18 - getLabelUnderlineWidth(bNode.name)"
+                      :y1="getBranchNodeY(br, bNIdx, i, false) + 9"
+                      :x2="layout.leftX - getBranchDx(br) - 18"
+                      :y2="getBranchNodeY(br, bNIdx, i, false) + 9"
+                      :stroke="getNodeIssueColor(bNode.id)" stroke-width="2.5" stroke-linecap="round"
+                      style="pointer-events:none;" />
+              </template>
+            </g>
+          </template>
+
+          <!-- Active Blue Main Rail over Disabled Branch Merge Points (Left Rail) -->
+          <template v-for="part in getMainSegVisualParts(seg, i, false)" :key="'lact-' + part.id">
+            <line v-if="!part.disabled"
+                  class="anim-line"
+                  :x1="layout.leftX"
+                  :y1="part.y1"
+                  :x2="layout.leftX"
+                  :y2="part.y2"
+                  :stroke="color"
+                  :stroke-width="layout.RAIL_W"
+                  stroke-linecap="butt"
+                  style="pointer-events:none;" />
           </template>
 
           <!-- Direction Arrow (Gradient Stripe Style) -->
-          <g v-if="i !== layout.leftSegments.length - 1" class="anim-row"
-             :style="{ opacity: ((editable && !localBranchMode) || (seg.stops && seg.stops.length >= 2)) ? 1 : 0, transform: 'translate(' + layout.leftX + 'px, ' + (layout.leftNodeY[i+1] - 25) + 'px) rotate(-90deg)', transition: 'all 0.6s cubic-bezier(0.4, 0, 0.2, 1)' }"
+          <g v-if="shouldShowLeftArrow(seg, i)" class="anim-row"
+             :style="{ transform: 'translate(' + layout.leftX + 'px, ' + (layout.leftNodeY[i+1] - 25) + 'px) rotate(-90deg)', transition: 'all 0.6s cubic-bezier(0.4, 0, 0.2, 1)' }"
              style="pointer-events:none;">
-            <polygon points="0,-4.5 42,-4.5 50,0 42,4.5 0,4.5" fill="url(#arrow-fade)" />
-            <polygon points="0,-4.5 8,0 0,4.5" :fill="color" />
+            <polygon points="8,0 0,-4.5 42,-4.5 50,0 42,4.5 0,4.5" fill="url(#arrow-fade)" />
           </g>
         </template>
+
+        <!-- ── BUS CONTINUOUS WHITE CORE LAYER (Drawn on top of all rails, branches, and arrows for seamless junctions) ── -->
+        <g v-if="isBus" class="bus-white-lines-layer" style="pointer-events: none;">
+          <!-- Right Rail Line (continuous) -->
+          <line :x1="layout.rightX" y1="0"
+                :x2="layout.rightX" y2="5000"
+                stroke="#ffffff" :stroke-width="busStripeWidth" stroke-linecap="square"
+                class="anim-line"
+                :style="{ strokeDasharray: '5000', strokeDashoffset: (5000 - layout.botY) }" />
+
+          <!-- Left Rail Line (continuous) -->
+          <line :x1="layout.leftX" y1="0"
+                :x2="layout.leftX" y2="5000"
+                stroke="#ffffff" :stroke-width="busStripeWidth" stroke-linecap="square"
+                class="anim-line"
+                :style="{ strokeDasharray: '5000', strokeDashoffset: (5000 - layout.botY) }" />
+
+          <!-- Right Branches (continuous white core) -->
+          <template v-for="(seg, i) in layout.rightSegments" :key="'rbr-bus-seg-' + seg.id">
+            <template v-for="br in branchesForSeg(segments.indexOf(seg))" :key="'rbr-bus-' + br.id">
+              <path v-if="br.finished"
+                    :d="getRightBranchFinishedPath(br, i).d"
+                    fill="none" stroke="#ffffff" :stroke-width="busStripeWidth" stroke-linejoin="round" stroke-linecap="round"/>
+              <path v-else
+                    :d="getBranchOutPath(layout.rightX, layout.rightNodeY[i], getBranchDx(br), 1, 1, getBranchEndpointY(br, i, true))"
+                    fill="none" stroke="#ffffff" :stroke-width="busStripeWidth" stroke-linejoin="round" stroke-linecap="round"/>
+            </template>
+          </template>
+
+          <!-- Left Branches (continuous white core) -->
+          <template v-for="(seg, i) in layout.leftSegments" :key="'lbr-bus-seg-' + seg.id">
+            <template v-for="br in branchesForSeg(segments.indexOf(seg))" :key="'lbr-bus-' + br.id">
+              <path v-if="br.finished"
+                    :d="getLeftBranchFinishedPath(br, i).d"
+                    fill="none" stroke="#ffffff" :stroke-width="busStripeWidth" stroke-linejoin="round" stroke-linecap="round"/>
+              <path v-else
+                    :d="getBranchOutPath(layout.leftX, layout.leftNodeY[i+1], getBranchDx(br), -1, -1, getBranchEndpointY(br, i, false))"
+                    fill="none" stroke="#ffffff" :stroke-width="busStripeWidth" stroke-linejoin="round" stroke-linecap="round"/>
+            </template>
+          </template>
+        </g>
+
+        <!-- ── BUS DIRECTION ARROWS LAYER (Two sharp cut-in chevrons in exact Figma 18x22 arrow shape) ── -->
+        <g v-if="isBus" class="bus-arrows-layer" style="pointer-events: none;">
+          <!-- Right Rail Bus Arrows (Procedurally for all right segments) -->
+          <template v-for="(seg, i) in layout.rightSegments" :key="'rseg-bus-arrow-' + seg.id">
+            <g v-if="(editable && !localBranchMode) || (layout.rightNodeY[i+1] - layout.rightNodeY[i] >= 36)"
+               class="anim-row"
+               :style="{ transform: 'translate(' + layout.rightX + 'px, ' + (layout.rightNodeY[i] + 36) + 'px) rotate(90deg)', transition: 'all 0.6s cubic-bezier(0.4, 0, 0.2, 1)' }">
+              <polygon points="-9.6,0 -13.2,-3.6 -18.4,-3.6 -14.8,0 -18.4,3.6 -13.2,3.6" :fill="isMainSegFullyDisabled(seg) ? '#cbd5e1' : color" />
+              <polygon points="18.4,0 14.8,-3.6 9.6,-3.6 13.2,0 9.6,3.6 14.8,3.6" :fill="isMainSegFullyDisabled(seg) ? '#cbd5e1' : color" />
+            </g>
+          </template>
+
+          <!-- Right Branches Bus Arrows (Centered on the straight horizontal spur) -->
+          <template v-for="(seg, i) in layout.rightSegments" :key="'rbr-bus-arrow-seg-' + seg.id">
+            <template v-for="br in branchesForSeg(segments.indexOf(seg))" :key="'rbr-bus-arrow-' + br.id">
+              <g class="anim-row"
+                 :style="{ transform: 'translate(' + (layout.rightX + (38.62 + getBranchDx(br) - 16) / 2) + 'px, ' + (layout.rightNodeY[i] + 32) + 'px)', transition: 'all 0.6s cubic-bezier(0.4, 0, 0.2, 1)' }">
+                <polygon points="-9.6,0 -13.2,-3.6 -18.4,-3.6 -14.8,0 -18.4,3.6 -13.2,3.6" :fill="isBranchDisabled(br) ? '#cbd5e1' : color" />
+                <polygon points="18.4,0 14.8,-3.6 9.6,-3.6 13.2,0 9.6,3.6 14.8,3.6" :fill="isBranchDisabled(br) ? '#cbd5e1' : color" />
+              </g>
+            </template>
+          </template>
+
+          <!-- Left Rail Bus Arrows (Procedurally for all left segments) -->
+          <template v-for="(seg, i) in layout.leftSegments" :key="'lseg-bus-arrow-' + seg.id">
+            <g v-if="(editable && !localBranchMode) || (layout.leftNodeY[i+1] - layout.leftNodeY[i] >= 36)"
+               class="anim-row"
+               :style="{ transform: 'translate(' + layout.leftX + 'px, ' + (layout.leftNodeY[i+1] - 36) + 'px) rotate(-90deg)', transition: 'all 0.6s cubic-bezier(0.4, 0, 0.2, 1)' }">
+              <polygon points="-9.6,0 -13.2,-3.6 -18.4,-3.6 -14.8,0 -18.4,3.6 -13.2,3.6" :fill="isMainSegFullyDisabled(seg) ? '#cbd5e1' : color" />
+              <polygon points="18.4,0 14.8,-3.6 9.6,-3.6 13.2,0 9.6,3.6 14.8,3.6" :fill="isMainSegFullyDisabled(seg) ? '#cbd5e1' : color" />
+            </g>
+          </template>
+
+          <!-- Left Branches Bus Arrows (Centered on the straight horizontal spur) -->
+          <template v-for="(seg, i) in layout.leftSegments" :key="'lbr-bus-arrow-seg-' + seg.id">
+            <template v-for="br in branchesForSeg(segments.indexOf(seg))" :key="'lbr-bus-arrow-' + br.id">
+              <g class="anim-row"
+                 :style="{ transform: 'translate(' + (layout.leftX - (38.62 + getBranchDx(br) - 16) / 2) + 'px, ' + (layout.leftNodeY[i+1] - 32) + 'px) rotate(180deg)', transition: 'all 0.6s cubic-bezier(0.4, 0, 0.2, 1)' }">
+                <polygon points="-9.6,0 -13.2,-3.6 -18.4,-3.6 -14.8,0 -18.4,3.6 -13.2,3.6" :fill="isBranchDisabled(br) ? '#cbd5e1' : color" />
+                <polygon points="18.4,0 14.8,-3.6 9.6,-3.6 13.2,0 9.6,3.6 14.8,3.6" :fill="isBranchDisabled(br) ? '#cbd5e1' : color" />
+              </g>
+            </template>
+          </template>
+        </g>
+
+        <!-- ── BRANCH CONTROL NODE CIRCLES (Re-rendered on top of bus white lines) ── -->
+        <g class="branch-control-nodes-top" style="pointer-events: none;">
+          <template v-for="(seg, i) in layout.rightSegments" :key="'rbr-top-seg-' + seg.id">
+            <template v-for="br in branchesForSeg(segments.indexOf(seg))" :key="'rbr-top-' + br.id">
+              <template v-for="(bNode, bNIdx) in br.nodes || []" :key="'rbrn-c-' + bNode.id">
+                <circle v-if="bNode.name && bNode.name !== 'Контрольна (альтернатива)'"
+                        :cx="layout.rightX + getBranchDx(br)"
+                        :cy="getBranchNodeY(br, bNIdx, i, true)"
+                        r="9" fill="#ffffff" :stroke="isNodeDisabled(bNode.id) ? '#cbd5e1' : color" stroke-width="3"/>
+              </template>
+            </template>
+          </template>
+          <template v-for="(seg, i) in layout.leftSegments" :key="'lbr-top-seg-' + seg.id">
+            <template v-for="br in branchesForSeg(segments.indexOf(seg))" :key="'lbr-top-' + br.id">
+              <template v-for="(bNode, bNIdx) in br.nodes || []" :key="'lbrn-c-' + bNode.id">
+                <circle v-if="bNode.name && bNode.name !== 'Контрольна (альтернатива)'"
+                        :cx="layout.leftX - getBranchDx(br)"
+                        :cy="getBranchNodeY(br, bNIdx, i, false)"
+                        r="9" fill="#ffffff" :stroke="isNodeDisabled(bNode.id) ? '#cbd5e1' : color" stroke-width="3"/>
+              </template>
+            </template>
+          </template>
+        </g>
 
         <!-- ── MAIN CONTROL NODES & INWARD CONNECTING LINES ── -->
         <g v-for="(node, idx) in controlNodes" :key="'cnode-' + node.id" class="anim-row"
@@ -771,31 +1118,45 @@
           <line v-if="node.side === 'left'"
                 :x1="layout.leftX" y1="0"
                 :x2="layout.leftX + 25" y2="0"
-                :stroke="color" stroke-width="3"/>
+                :stroke="isNodeDisabled(node.id) ? '#cbd5e1' : color" stroke-width="3"/>
           <line v-else
                 :x1="layout.rightX" y1="0"
                 :x2="layout.rightX - 25" y2="0"
-                :stroke="color" stroke-width="3"/>
+                :stroke="isNodeDisabled(node.id) ? '#cbd5e1' : color" stroke-width="3"/>
 
           <!-- Circle only on the correct side (RENDERED SECOND -> OVER LINE) -->
           <circle v-if="node.side === 'left'" :cx="layout.leftX" cy="0" r="9"
-                  fill="#f5f5f5" :stroke="(node.type === 'end' || node.isTerminus) ? '#111827' : color" :stroke-width="(node.type === 'end' || node.isTerminus) ? 4 : 3.5"
+                  fill="#f5f5f5" :stroke="(node.type === 'end' || node.isTerminus) ? '#111827' : (isNodeDisabled(node.id) ? '#cbd5e1' : color)" :stroke-width="(node.type === 'end' || node.isTerminus) ? 4 : 3.5"
                   :class="{ 'terminus-added': (node.type === 'end' || node.isTerminus) }" />
           <circle v-else :cx="layout.rightX" cy="0" r="9"
-                  fill="#f5f5f5" :stroke="(node.type === 'end' || node.isTerminus) ? '#111827' : color" :stroke-width="(node.type === 'end' || node.isTerminus) ? 4 : 3.5"
+                  fill="#f5f5f5" :stroke="(node.type === 'end' || node.isTerminus) ? '#111827' : (isNodeDisabled(node.id) ? '#cbd5e1' : color)" :stroke-width="(node.type === 'end' || node.isTerminus) ? 4 : 3.5"
                   :class="{ 'terminus-added': (node.type === 'end' || node.isTerminus) }" />
 
           <!-- Control Node Name Label & Travel Time -->
           <text v-if="node.side === 'left'"
                 :x="layout.leftX - 18" y="4"
-                font-size="13" font-weight="700" fill="#111827" text-anchor="end" style="pointer-events:none;">
-            <tspan>{{ (node.type === 'end' || node.isTerminus) && node.terminusStop ? node.terminusStop : node.name }} </tspan><tspan dx="8" font-size="13" font-weight="700" font-style="italic" :fill="color">{{ nodeTravelTimes[node.id] || 0 }} хв</tspan>
+                font-size="13" font-weight="700" :fill="isNodeDisabled(node.id) ? '#9ca3af' : '#111827'" text-anchor="end" style="pointer-events:none;">
+            <tspan>{{ (node.type === 'end' || node.isTerminus) && node.terminusStop ? node.terminusStop : node.name }} </tspan><tspan dx="8" font-size="13" font-weight="700" font-style="italic" :fill="isNodeDisabled(node.id) ? '#9ca3af' : color">{{ nodeTravelTimes[node.id] || 0 }} хв</tspan>
           </text>
           <text v-else
                 :x="layout.rightX + 18" y="4"
-                font-size="13" font-weight="700" fill="#111827" style="pointer-events:none;">
-            <tspan>{{ (node.type === 'end' || node.isTerminus) && node.terminusStop ? node.terminusStop : node.name }} </tspan><tspan dx="8" font-size="13" font-weight="700" font-style="italic" :fill="color">{{ nodeTravelTimes[node.id] || 0 }} хв</tspan>
+                font-size="13" font-weight="700" :fill="isNodeDisabled(node.id) ? '#9ca3af' : '#111827'" style="pointer-events:none;">
+            <tspan>{{ (node.type === 'end' || node.isTerminus) && node.terminusStop ? node.terminusStop : node.name }} </tspan><tspan dx="8" font-size="13" font-weight="700" font-style="italic" :fill="isNodeDisabled(node.id) ? '#9ca3af' : color">{{ nodeTravelTimes[node.id] || 0 }} хв</tspan>
           </text>
+          <line v-if="getNodeIssueColor(node.id) && node.side === 'left'"
+                :x1="layout.leftX - 18 - getLabelUnderlineWidth((node.type === 'end' || node.isTerminus) && node.terminusStop ? node.terminusStop : node.name)"
+                :y1="9"
+                :x2="layout.leftX - 18"
+                :y2="9"
+                :stroke="getNodeIssueColor(node.id)" stroke-width="2.5" stroke-linecap="round"
+                style="pointer-events:none;" />
+          <line v-if="getNodeIssueColor(node.id) && node.side !== 'left'"
+                :x1="layout.rightX + 18"
+                :y1="9"
+                :x2="layout.rightX + 18 + getLabelUnderlineWidth((node.type === 'end' || node.isTerminus) && node.terminusStop ? node.terminusStop : node.name)"
+                :y2="9"
+                :stroke="getNodeIssueColor(node.id)" stroke-width="2.5" stroke-linecap="round"
+                style="pointer-events:none;" />
           
           <!-- Icons for side termini (placed INSIDE the oval) -->
           <g v-if="node.isTerminus && getTerminusIcons(node).length > 0" :transform="'translate(' + (node.side === 'left' ? layout.leftX + 32 : layout.rightX - 52) + ', -6)'">
@@ -821,6 +1182,37 @@
           </g>
         </g>
 
+        <!-- ── "+ Додати ділянку" BUTTONS (TOP OVERLAY LAYER: Renders clean on top of all rails & bus stripes) ── -->
+        <!-- Right Rail "+ Додати ділянку" Button -->
+        <g :style="{ opacity: (editable && !localBranchMode) ? 1 : 0, pointerEvents: (editable && !localBranchMode) ? 'auto' : 'none', transition: 'opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1)' }">
+          <g class="anim-row"
+             :style="{ transform: 'translate(0px, ' + rightAddNodeY + 'px)' }"
+             style="cursor:pointer;" @click.stop="$emit('add-node', 'right')">
+            <circle :cx="layout.rightX" cy="0" r="14"
+                    fill="#ffffff" stroke="#9ca3af" stroke-width="2.5"/>
+            <g :transform="'translate(' + (layout.rightX - 4.05) + ', -4.05)'" fill="#6b7280" style="pointer-events:none;">
+              <path transform="scale(0.55)" d="M1.00195 8.36719H6.36328V13.7285C6.36328 14.2734 6.81152 14.7305 7.36523 14.7305C7.91895 14.7305 8.36719 14.2734 8.36719 13.7285V8.36719H13.7285C14.2734 8.36719 14.7305 7.91895 14.7305 7.36523C14.7305 6.81152 14.2734 6.36328 13.7285 6.36328H8.36719V1.00195C8.36719 0.457031 7.91895 0 7.36523 0C6.81152 0 6.36328 0.457031 6.36328 1.00195V6.36328H1.00195C0.457031 6.36328 0 6.81152 0 7.36523C0 7.91895 0.457031 8.36719 1.00195 8.36719Z" />
+            </g>
+            <text :x="layout.rightX + 22" y="4"
+                  font-size="12" font-weight="500" fill="#6b7280" style="pointer-events:none;">Додати ділянку</text>
+          </g>
+        </g>
+
+        <!-- Left Rail "+ Додати ділянку" Button -->
+        <g :style="{ opacity: (editable && !localBranchMode) ? 1 : 0, pointerEvents: (editable && !localBranchMode) ? 'auto' : 'none', transition: 'opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1)' }">
+          <g class="anim-row"
+             :style="{ transform: 'translate(0px, ' + leftAddNodeY + 'px)' }"
+             style="cursor:pointer;" @click.stop="$emit('add-node', 'left')">
+            <circle :cx="layout.leftX" cy="0" r="14"
+                    fill="#ffffff" stroke="#9ca3af" stroke-width="2.5"/>
+            <g :transform="'translate(' + (layout.leftX - 4.05) + ', -4.05)'" fill="#6b7280" style="pointer-events:none;">
+              <path transform="scale(0.55)" d="M1.00195 8.36719H6.36328V13.7285C6.36328 14.2734 6.81152 14.7305 7.36523 14.7305C7.91895 14.7305 8.36719 14.2734 8.36719 13.7285V8.36719H13.7285C14.2734 8.36719 14.7305 7.91895 14.7305 7.36523C14.7305 6.81152 14.2734 6.36328 13.7285 6.36328H8.36719V1.00195C8.36719 0.457031 7.91895 0 7.36523 0C6.81152 0 6.36328 0.457031 6.36328 1.00195V6.36328H1.00195C0.457031 6.36328 0 6.81152 0 7.36523C0 7.91895 0.457031 8.36719 1.00195 8.36719Z" />
+            </g>
+            <text :x="layout.leftX - 22" y="4"
+                  font-size="12" font-weight="500" fill="#6b7280" text-anchor="end" style="pointer-events:none;">Додати ділянку</text>
+          </g>
+        </g>
+
       </g>
     </svg>
   </div>
@@ -838,6 +1230,7 @@ const props = defineProps({
   editable: { type: Boolean, default: false },
   viewBoxOverride: { type: Object, default: null },
   isBranchMode: { type: Boolean, default: false },
+  isChainToggleMode: { type: Boolean, default: false },
   isAnimationPaused: { type: Boolean, default: false }
 });
 
@@ -847,7 +1240,7 @@ const emit = defineEmits([
   'add-branch', 'add-sub-branch', 'finish-branch', 'config-branch',
   'add-branch-node', 'add-branch-stop', 'extend-branch-with-stop',
   'edit-branch-stop', 'edit-branch-node',
-  'toggle-branch-mode'
+  'toggle-branch-mode', 'toggle-chain'
 ]);
 
 function getBranchNodesLength(br) {
@@ -926,10 +1319,13 @@ const arcArrows = computed(() => {
 
 const topArcArrows = computed(() => {
   if (!arcArrows.value) return [];
-  return [
-    { key: 'topRight', ...arcArrows.value.topRight },
-    { key: 'topLeft', ...arcArrows.value.topLeft }
-  ];
+  const list = [];
+  // If right rail has a branch starting at top (segIdx 0), skip topRight arrow to prevent overlap/broken gradient at branch junction
+  if (!hasBranchForSeg(0)) {
+    list.push({ key: 'topRight', ...arcArrows.value.topRight });
+  }
+  list.push({ key: 'topLeft', ...arcArrows.value.topLeft });
+  return list;
 });
 
 const botArcArrows = computed(() => {
@@ -999,6 +1395,15 @@ function getBranchTargetSegIdx(b, allSegments) {
   if (b.targetNodeId && b.targetType !== 'bottom_arc') {
     const sIdx = segs.findIndex(s => String(s.nextNodeId) === String(b.targetNodeId));
     if (sIdx !== -1) return sIdx;
+  }
+  if (b.targetType === 'bottom_arc') {
+    if (b.side === 'left') {
+      const lSegs = segs.filter(s => s.side === 'left');
+      if (lSegs.length > 0) return segs.indexOf(lSegs[0]);
+    } else {
+      const rSegs = segs.filter(s => !s.side || s.side === 'right');
+      if (rSegs.length > 0) return segs.indexOf(rSegs[rSegs.length - 1]);
+    }
   }
   if (allSegments && b.segIdx !== undefined && segments.value && segments.value[b.segIdx]) {
     const pId = segments.value[b.segIdx].id;
@@ -1104,10 +1509,232 @@ function getMainAddPillStyle(side, seg, i) {
 }
 
 const color = computed(() => props.routeData.color || '#1D43EF');
+const isBus = computed(() => (props.routeData?.transportType || 'trolleybus') === 'bus');
+const busStripeWidth = 2.6;
 const nodes = computed(() => props.routeData.nodes || []);
 const segments = computed(() => props.routeData.segments || []);
 const branches = computed(() => props.routeData.branches || []);
 const localBranchMode = computed(() => props.isBranchMode || props.routeData.isBranchMode || false);
+const localChainToggleMode = computed(() => props.isChainToggleMode || false);
+const chainAnalysis = computed(() => props.routeData?.chainAnalysis || null);
+const hasFinishedBranches = computed(() => (branches.value || []).some(b => b && b.finished));
+
+function isSubSegDisabled(subId) {
+  return chainAnalysis.value?.disabledSubSegIds?.has(String(subId)) || false;
+}
+
+function isNodeDisabled(nodeId) {
+  return chainAnalysis.value?.disabledNodeIds?.has(String(nodeId)) || false;
+}
+
+function isStopDisabled(stopId) {
+  return chainAnalysis.value?.disabledStopIds?.has(String(stopId)) || false;
+}
+
+function isBranchSectionDisabled(br, secIdx0) {
+  const sec = br?.sections?.[secIdx0];
+  if (!sec) return false;
+  return isSubSegDisabled(sec.id);
+}
+
+function isBranchDisabled(br) {
+  if (!br?.sections?.length) return false;
+  return br.sections.every(sec => isSubSegDisabled(sec.id));
+}
+
+function isMainSegFullyDisabled(seg) {
+  if (!seg) return false;
+  const subParts = chainAnalysis.value?.subSegsByParentSegId?.get(String(seg.id)) || [];
+  if (subParts.length === 0) return isSubSegDisabled(seg.id);
+  return subParts.every(p => isSubSegDisabled(p.id));
+}
+
+function shouldShowChainToggle(edgeId) {
+  if (!props.editable || localBranchMode.value || !localChainToggleMode.value || !hasFinishedBranches.value || !edgeId) return false;
+  const ch = chainAnalysis.value?.chainByLookupId?.get(String(edgeId));
+  if (!ch || !ch.edges?.length) return false;
+  // ONLY show switch if there is an alternative (either is a branch, or is the bypassed main section)!
+  if (!ch.isBranch && !ch.isBypassedMain) return false;
+  return String(ch.edges[0].id) === String(edgeId);
+}
+
+function hasMainSegToggle(seg, i, isRight) {
+  return getMainSegVisualParts(seg, i, isRight).some(part => shouldShowChainToggle(part.id));
+}
+
+function getMainSegVisualParts(seg, i, isRight) {
+  if (!layout.value || !seg) return [];
+  const l = layout.value;
+  const actualIdx = segments.value.indexOf(seg);
+  const defaultIntervalY = isRight
+    ? l.getRightIntervalY(seg, l.rightNodeY[i], l.rightNodeY[i + 1], i === l.rightSegments.length - 1, actualIdx)
+    : l.getLeftIntervalY(seg, l.leftNodeY[i], l.leftNodeY[i + 1], i === l.leftSegments.length - 1, actualIdx);
+
+  // Direction of travel: Right rail goes down (rightNodeY[i] -> rightNodeY[i+1]); Left rail goes up (leftNodeY[i+1] -> leftNodeY[i])
+  // Ensure terminal segments reach the stadium oval caps (botY / topY) so disabled grey overlays cover the entire rail without orphan blue tails
+  const startY = isRight
+    ? (i === 0 ? l.topY : l.rightNodeY[i])
+    : (i === l.leftSegments.length - 1 ? l.botY : l.leftNodeY[i + 1]);
+  const endY = isRight
+    ? (i === l.rightSegments.length - 1 ? l.botY : l.rightNodeY[i + 1])
+    : (i === 0 ? l.topY : l.leftNodeY[i]);
+
+  const subParts = chainAnalysis.value?.subSegsByParentSegId?.get(String(seg.id)) || [];
+  if (subParts.length <= 1) {
+    const id = subParts[0]?.id || String(seg.id);
+    return [{
+      id,
+      y1: Math.min(startY, endY),
+      y2: Math.max(startY, endY),
+      toggleY: defaultIntervalY + 11,
+      disabled: isSubSegDisabled(id)
+    }];
+  }
+
+  // Segment is split by one or more mid-segment branch merges (J_seg_${seg.id}_slot_${slot})
+  const points = [startY];
+  for (let k = 0; k < subParts.length - 1; k++) {
+    const toVertex = String(subParts[k].toVertex || '');
+    const slotMatch = toVertex.match(/_slot_(\d+)$/);
+    const slotIdx = slotMatch ? Number(slotMatch[1]) : 0;
+    const targetStop = seg.stops?.[slotIdx];
+    const mergingBr = (branches.value || []).find(b =>
+      b && b.finished && targetStop && String(b.targetStopId) === String(targetStop.id)
+    );
+    let mY = (startY + endY) / 2;
+    if (mergingBr) {
+      const brSegIdx = mergingBr.segIdx ?? actualIdx;
+      const parentSeg = segments.value[brSegIdx] || seg;
+      const railIdx = isRight
+        ? l.rightSegments.findIndex(s => String(s.id) === String(parentSeg.id))
+        : l.leftSegments.findIndex(s => String(s.id) === String(parentSeg.id));
+      const safeIdx = Math.max(0, railIdx);
+      const pathInfo = isRight
+        ? getRightBranchFinishedPath(mergingBr, safeIdx)
+        : getLeftBranchFinishedPath(mergingBr, safeIdx);
+      mY = pathInfo.mergeY;
+    }
+    points.push(mY);
+  }
+  points.push(endY);
+
+  const rawParts = subParts.map((sub, idx) => {
+    const pA = points[idx];
+    const pB = points[idx + 1];
+    const y1 = Math.min(pA, pB);
+    const y2 = Math.max(pA, pB);
+    let midY = (y1 + y2) / 2;
+    if (subParts.length === 1) {
+      midY = defaultIntervalY + 11;
+    }
+    return {
+      id: sub.id,
+      y1,
+      y2,
+      toggleY: midY,
+      disabled: isSubSegDisabled(sub.id)
+    };
+  });
+
+  // Ensure toggles do not overlap defaultIntervalY (where 18-22хв sits)
+  rawParts.forEach(p => {
+    if (Math.abs(p.toggleY - defaultIntervalY) < 14) {
+      p.toggleY = p.toggleY >= defaultIntervalY ? (defaultIntervalY + 14) : (defaultIntervalY - 14);
+    }
+  });
+
+  // Ensure consecutive toggles maintain minimum 20px vertical spacing
+  for (let k = 1; k < rawParts.length; k++) {
+    if (rawParts[k].toggleY - rawParts[k - 1].toggleY < 20) {
+      rawParts[k].toggleY = rawParts[k - 1].toggleY + 20;
+    }
+  }
+
+  return rawParts;
+}
+
+function shouldShowRightArrow(seg, i) {
+  if (isBus.value) return false;
+  if (i === 0) return false;
+  // If a branch starts from this segment, do not show arrow at start to avoid clipping/overlap
+  if (hasBranchForSeg(segments.value.indexOf(seg))) return false;
+  const l = layout.value;
+  if (!l || !l.rightNodeY) return false;
+  const hasSpace = (props.editable && !localBranchMode.value) || (seg.stops && seg.stops.length >= 2);
+  if (!hasSpace) return false;
+
+  const arrowY = (l.rightNodeY[i] ?? 0) + 25;
+  const parts = getMainSegVisualParts(seg, i, true);
+  const part = parts.find(p => p.y1 <= arrowY && arrowY <= p.y2) || parts[0];
+  if (part && part.disabled) return false;
+  if (isMainSegFullyDisabled(seg)) return false;
+  return true;
+}
+
+function shouldShowLeftArrow(seg, i) {
+  if (isBus.value) return false;
+  const l = layout.value;
+  if (!l || !l.leftNodeY) return false;
+  if (i === l.leftSegments.length - 1) return false;
+  if (hasBranchForSeg(segments.value.indexOf(seg))) return false;
+  const hasSpace = (props.editable && !localBranchMode.value) || (seg.stops && seg.stops.length >= 2);
+  if (!hasSpace) return false;
+
+  const arrowY = (l.leftNodeY[i + 1] ?? 0) - 25;
+  const parts = getMainSegVisualParts(seg, i, false);
+  const part = parts.find(p => p.y1 <= arrowY && arrowY <= p.y2) || parts[0];
+  if (part && part.disabled) return false;
+  if (isMainSegFullyDisabled(seg)) return false;
+  return true;
+}
+
+const ISSUE_RED = '#ef4444';
+const ISSUE_YELLOW = '#f59e0b';
+const ISSUE_GREY = '#6b7280';
+
+function getNodeIssueColor(nodeId) {
+  const sev = props.routeData?.validation?.nodeIssues?.[String(nodeId)];
+  if (sev === 'red') return ISSUE_RED;
+  if (sev === 'yellow') return ISSUE_YELLOW;
+  if (sev === 'grey') return ISSUE_GREY;
+  return null;
+}
+
+function getStopIssueColor(stopId) {
+  const sev = props.routeData?.validation?.stopIssues?.[String(stopId)];
+  if (sev === 'red') return ISSUE_RED;
+  if (sev === 'yellow') return ISSUE_YELLOW;
+  if (sev === 'grey') return ISSUE_GREY;
+  return null;
+}
+
+function getSegmentIssueColor(segId) {
+  const sev = props.routeData?.validation?.segmentIssues?.[String(segId)];
+  if (sev === 'red') return ISSUE_RED;
+  if (sev === 'yellow') return ISSUE_YELLOW;
+  if (sev === 'grey') return ISSUE_GREY;
+  return null;
+}
+
+function getBranchIssueColor(br) {
+  if (!br?.sections) return null;
+  let hasYellow = false;
+  let hasGrey = false;
+  for (const sec of br.sections) {
+    const c = getSegmentIssueColor(sec.id);
+    if (c === ISSUE_RED) return ISSUE_RED;
+    if (c === ISSUE_YELLOW) hasYellow = true;
+    if (c === ISSUE_GREY) hasGrey = true;
+  }
+  if (hasYellow) return ISSUE_YELLOW;
+  return hasGrey ? ISSUE_GREY : null;
+}
+
+function getLabelUnderlineWidth(nameStr) {
+  const lines = splitStopName(nameStr || '');
+  const maxLen = Math.max(...lines.map(l => l.length), 4);
+  return Math.max(36, Math.min(185, maxLen * 6.8));
+}
 
 const firstNode = computed(() => {
   return nodes.value.find(n => !n.side || n.side === 'top') || nodes.value[0] || null;
@@ -1130,6 +1757,9 @@ const leftAddNodeY = computed(() => {
 });
 
 const nodeTravelTimes = computed(() => {
+  if (props.routeData?.nodeTravelTimes) {
+    return props.routeData.nodeTravelTimes;
+  }
   if (!layout.value || !props.routeData?.nodes?.length) return {};
   const times = {};
   const nodeMap = new Map(props.routeData.nodes.map(n => [String(n.id), n]));
@@ -1236,7 +1866,8 @@ function getBranchOutPath(x, y, dx, dirX, dirY, endY) {
   const sweep2 = 1;
   const finalY = endY !== undefined ? endY : (y + (absDx <= 128 ? 96 : 128) * dirY);
   
-  return 'M ' + x + ' ' + y + ' '
+  return 'M ' + x + ' ' + (y - 4 * dirY) + ' '
+       + 'L ' + x + ' ' + y + ' '
        + 'L ' + (x + 27.32 * dirX) + ' ' + (y + 27.32 * dirY) + ' '
        + 'A ' + r + ' ' + r + ' 0 0 ' + sweep1 + ' ' + (x + 38.62 * dirX) + ' ' + (y + 32 * dirY) + ' '
        + 'L ' + (x + (absDx - r) * dirX) + ' ' + (y + 32 * dirY) + ' '
@@ -1265,7 +1896,7 @@ function getBranchNodeY(br, bNIdx, i, isRight) {
     const stops = sections[si]?.stops || [];
     const stopsHeight = stops.reduce((acc, st) => acc + getStopHeight(st), 0);
     yOffset += stopsHeight;
-    if (props.editable !== false) yOffset += 32;
+    if (props.editable !== false && !localBranchMode.value) yOffset += 32;
   }
   yOffset += bNIdx * 32;
   return isRight ? (startY + yOffset) : (startY - yOffset);
@@ -1282,12 +1913,13 @@ function getBranchStopY(br, secIdx, bStIdx, i, isRight) {
     const stops = sections[si]?.stops || [];
     const stopsHeight = stops.reduce((acc, st) => acc + getStopHeight(st), 0);
     yOffset += stopsHeight;
-    if (props.editable !== false) yOffset += 32;
+    if (props.editable !== false && !localBranchMode.value) yOffset += 32;
     yOffset += 32;
   }
   const currentSecStops = sections[secIdx - 1]?.stops || [];
   const currentStopsHeightBefore = currentSecStops.slice(0, bStIdx).reduce((acc, st) => acc + getStopHeight(st), 0);
-  yOffset += currentStopsHeightBefore;
+  const currentStopExtra = !isRight && currentSecStops[bStIdx] ? (getStopHeight(currentSecStops[bStIdx]) - 32) : 0;
+  yOffset += currentStopsHeightBefore + currentStopExtra;
   return isRight ? (startY + yOffset) : (startY - yOffset);
 }
 
@@ -1381,6 +2013,51 @@ function getBranchSectionEndY(br, secIdx, i, isRight) {
   return getBranchEndpointY(br, i, isRight);
 }
 
+function getBranchValidationLineY1(br, secIdx, i, isRight) {
+  if (!layout.value) return 0;
+  const l = layout.value;
+  const nodesLen = getBranchNodesLength(br);
+  if (isRight) {
+    const topY = secIdx <= 1
+      ? ((l.rightNodeY[i] ?? 0) + 48)
+      : (getBranchNodeY(br, secIdx - 2, i, true) + 14);
+    return topY;
+  } else {
+    let topY;
+    if (secIdx <= nodesLen) {
+      topY = getBranchNodeY(br, secIdx - 1, i, false) + 14;
+    } else if (br.finished) {
+      topY = getLeftBranchFinishedPath(br, i).turnY + 18;
+    } else {
+      topY = getBranchEndpointY(br, i, false) + 4;
+    }
+    return topY;
+  }
+}
+
+function getBranchValidationLineY2(br, secIdx, i, isRight) {
+  if (!layout.value) return 0;
+  const l = layout.value;
+  const nodesLen = getBranchNodesLength(br);
+  const y1 = getBranchValidationLineY1(br, secIdx, i, isRight);
+  if (isRight) {
+    let botY;
+    if (secIdx <= nodesLen) {
+      botY = getBranchNodeY(br, secIdx - 1, i, true) - 14;
+    } else if (br.finished) {
+      botY = getRightBranchFinishedPath(br, i).turnY - 18;
+    } else {
+      botY = getBranchEndpointY(br, i, true) - 4;
+    }
+    return Math.max(y1 + 4, botY);
+  } else {
+    const botY = secIdx <= 1
+      ? ((l.leftNodeY[i + 1] ?? 0) - 48)
+      : (getBranchNodeY(br, secIdx - 2, i, false) - 14);
+    return Math.max(y1 + 4, botY);
+  }
+}
+
 function getBranchAddStopY(br, secIdx, i, isRight) {
   if (!layout.value) return 0;
   const l = layout.value;
@@ -1392,7 +2069,7 @@ function getBranchAddStopY(br, secIdx, i, isRight) {
     const stops = sections[si]?.stops || [];
     const stopsHeight = stops.reduce((acc, st) => acc + getStopHeight(st), 0);
     yOffset += stopsHeight;
-    if (props.editable !== false) yOffset += 32;
+    if (props.editable !== false && !localBranchMode.value) yOffset += 32;
     yOffset += 32; // for the control node between sections
   }
   
@@ -1419,7 +2096,7 @@ function getBranchEndpointY(br, i, isRight) {
     const stops = sections[si]?.stops || [];
     const stopsHeight = stops.reduce((acc, st) => acc + getStopHeight(st), 0);
     yOffset += stopsHeight;
-    if (props.editable !== false) yOffset += 32;
+    if (props.editable !== false && !localBranchMode.value) yOffset += 32;
   }
   yOffset += nodesLen * 32;
   
@@ -1439,26 +2116,77 @@ function getBranchSectionIntervalText(br, secIdx) {
   return `${min}-${max}хв`;
 }
 
+function getBranchSectionBounds(br, secIdx, i, isRight) {
+  if (!layout.value) return { y1: 0, y2: 0, height: 24, midY: 0 };
+  const l = layout.value;
+  const nodesLen = getBranchNodesLength(br);
+  const isFirst = (secIdx === 1);
+  const isLast = (secIdx === nodesLen + 1);
+
+  let topY = 0;
+  let botY = 0;
+
+  if (isRight) {
+    if (isFirst) {
+      const parentSeg = br.segIdx !== undefined ? props.routeData.segments[br.segIdx] : null;
+      const rSegIdx = parentSeg ? l.rightSegments.findIndex(s => String(s.id) === String(parentSeg.id)) : (br.segIdx ?? i);
+      const startY = (rSegIdx !== -1 && l.rightNodeY[rSegIdx] !== undefined) ? l.rightNodeY[rSegIdx] : (l.rightNodeY[i] ?? 0);
+      topY = startY + 32;
+    } else {
+      topY = getBranchNodeY(br, secIdx - 2, i, true);
+    }
+
+    if (isLast) {
+      if (br.finished) {
+        botY = getRightBranchFinishedPath(br, i).mergeY - 32;
+      } else {
+        botY = getBranchEndpointY(br, i, true);
+      }
+    } else {
+      botY = getBranchNodeY(br, secIdx - 1, i, true);
+    }
+  } else {
+    if (isFirst) {
+      const parentSeg = br.segIdx !== undefined ? props.routeData.segments[br.segIdx] : null;
+      const lSegIdx = parentSeg ? l.leftSegments.findIndex(s => String(s.id) === String(parentSeg.id)) : (br.segIdx ?? i);
+      const startY = (lSegIdx !== -1 && l.leftNodeY[lSegIdx + 1] !== undefined) ? l.leftNodeY[lSegIdx + 1] : (l.leftNodeY[i + 1] ?? 0);
+      botY = startY - 32;
+    } else {
+      botY = getBranchNodeY(br, secIdx - 2, i, false);
+    }
+
+    if (isLast) {
+      if (br.finished) {
+        topY = getLeftBranchFinishedPath(br, i).mergeY + 32;
+      } else {
+        topY = getBranchEndpointY(br, i, false);
+      }
+    } else {
+      topY = getBranchNodeY(br, secIdx - 1, i, false);
+    }
+  }
+
+  const yMin = Math.min(topY, botY);
+  const yMax = Math.max(topY, botY);
+  const height = Math.max(24, yMax - yMin);
+  return {
+    y1: yMin,
+    y2: yMax,
+    height,
+    midY: (yMin + yMax) / 2
+  };
+}
+
 function getBranchSectionIntervalY(br, secIdx, i, isRight) {
-  const sY = getBranchSectionStartY(br, secIdx, i, isRight);
-  const eY = getBranchSectionEndY(br, secIdx, i, isRight);
-  return (sY + eY) / 2;
+  return getBranchSectionBounds(br, secIdx, i, isRight).midY;
 }
 
 function getBranchGradientStartY(br, secIdx, i, isRight) {
-  let sY = Math.min(getBranchSectionStartY(br, secIdx, i, isRight), getBranchSectionEndY(br, secIdx, i, isRight));
-  if (secIdx === 1) {
-    sY -= 32; // shift 1 position (32px) higher to start from the top turn
-  }
-  return sY;
+  return getBranchSectionBounds(br, secIdx, i, isRight).y1;
 }
 
 function getBranchGradientHeight(br, secIdx, i, isRight) {
-  let h = Math.max(24, Math.abs(getBranchSectionEndY(br, secIdx, i, isRight) - getBranchSectionStartY(br, secIdx, i, isRight)));
-  if (secIdx === 1) {
-    h += 32; // extend by 1 position (32px) to match the shifted start
-  }
-  return h;
+  return getBranchSectionBounds(br, secIdx, i, isRight).height;
 }
 
 function getBranchDx(br) {
@@ -1477,12 +2205,17 @@ function getRightBranchFinishedPath(br, i) {
   const startY = (rSegIdx !== -1 && l.rightNodeY[rSegIdx] !== undefined) ? l.rightNodeY[rSegIdx] : (l.rightNodeY[i] ?? 0);
   const dx = getBranchDx(br);
 
-  const minTurnY = getBranchEndpointY(br, i, true);
+  const minTurnY = getBranchEndpointY(br, (rSegIdx !== -1 ? rSegIdx : i), true);
   let mergeY = l.getBranchMergeY(br, true);
-  mergeY = Math.max(mergeY, minTurnY);
+  if (br.targetType === 'bottom_arc') {
+    mergeY = l.botY;
+  } else {
+    mergeY = Math.max(mergeY, minTurnY + 48);
+  }
 
-  const turnY = mergeY;
+  const turnY = mergeY - 32;
   const r = 16;
+  const rMerge = 32;
   const absDx = Math.abs(dx);
   
   let dPath = 'M ' + l.rightX + ' ' + startY + ' '
@@ -1490,14 +2223,14 @@ function getRightBranchFinishedPath(br, i) {
      + 'A ' + r + ' ' + r + ' 0 0 0 ' + (l.rightX + 38.62) + ' ' + (startY + 32) + ' '
      + 'L ' + (l.rightX + absDx - r) + ' ' + (startY + 32) + ' '
      + 'A ' + r + ' ' + r + ' 0 0 1 ' + (l.rightX + absDx) + ' ' + (startY + 48) + ' '
-     + 'L ' + (l.rightX + absDx) + ' ' + (mergeY - r) + ' '
-     + 'A ' + r + ' ' + r + ' 0 0 1 ' + (l.rightX + absDx - r) + ' ' + mergeY + ' '
-     + 'L ' + (l.rightX + r) + ' ' + mergeY + ' '
-     + 'A ' + r + ' ' + r + ' 0 0 0 ' + l.rightX + ' ' + (mergeY + r);
+     + 'L ' + (l.rightX + absDx) + ' ' + (mergeY - 32 - r) + ' '
+     + 'A ' + r + ' ' + r + ' 0 0 1 ' + (l.rightX + absDx - r) + ' ' + (mergeY - 32) + ' '
+     + 'L ' + (l.rightX + rMerge) + ' ' + (mergeY - 32) + ' '
+     + 'A ' + rMerge + ' ' + rMerge + ' 0 0 0 ' + l.rightX + ' ' + mergeY;
      
   return {
     d: dPath,
-    arrowY: mergeY + 15,
+    arrowY: mergeY - 31,
     turnY: turnY,
     mergeY: mergeY
   };
@@ -1511,12 +2244,17 @@ function getLeftBranchFinishedPath(br, i) {
   const startY = (lSegIdx !== -1 && l.leftNodeY[lSegIdx + 1] !== undefined) ? l.leftNodeY[lSegIdx + 1] : (l.leftNodeY[i + 1] ?? 0);
   
   const dx = getBranchDx(br);
-  const minTurnY = getBranchEndpointY(br, i, false);
+  const minTurnY = getBranchEndpointY(br, (lSegIdx !== -1 ? lSegIdx : i), false);
   let mergeY = l.getBranchMergeY(br, false);
-  mergeY = Math.min(mergeY, minTurnY);
+  if (br.targetType === 'bottom_arc') {
+    mergeY = l.topY;
+  } else {
+    mergeY = Math.min(mergeY, minTurnY - 48);
+  }
 
-  const turnY = mergeY;
+  const turnY = mergeY + 32;
   const r = 16;
+  const rMerge = 32;
   const absDx = Math.abs(dx);
   
   let dPath = 'M ' + l.leftX + ' ' + startY + ' '
@@ -1524,14 +2262,14 @@ function getLeftBranchFinishedPath(br, i) {
      + 'A ' + r + ' ' + r + ' 0 0 0 ' + (l.leftX - 38.62) + ' ' + (startY - 32) + ' '
      + 'L ' + (l.leftX - absDx + r) + ' ' + (startY - 32) + ' '
      + 'A ' + r + ' ' + r + ' 0 0 1 ' + (l.leftX - absDx) + ' ' + (startY - 48) + ' '
-     + 'L ' + (l.leftX - absDx) + ' ' + (mergeY + r) + ' '
-     + 'A ' + r + ' ' + r + ' 0 0 1 ' + (l.leftX - absDx + r) + ' ' + mergeY + ' '
-     + 'L ' + (l.leftX - r) + ' ' + mergeY + ' '
-     + 'A ' + r + ' ' + r + ' 0 0 0 ' + l.leftX + ' ' + (mergeY - r);
+     + 'L ' + (l.leftX - absDx) + ' ' + (mergeY + 32 + r) + ' '
+     + 'A ' + r + ' ' + r + ' 0 0 1 ' + (l.leftX - absDx + r) + ' ' + (mergeY + 32) + ' '
+     + 'L ' + (l.leftX - rMerge) + ' ' + (mergeY + 32) + ' '
+     + 'A ' + rMerge + ' ' + rMerge + ' 0 0 0 ' + l.leftX + ' ' + mergeY;
 
   return {
     d: dPath,
-    arrowY: mergeY - 15,
+    arrowY: mergeY + 31,
     turnY: turnY,
     mergeY: mergeY
   };
@@ -1576,6 +2314,107 @@ const vbW = ref(800);
 const vbH = ref(1200);
 
 let zoomAnimFrame = null;
+let lastZoomedSegId = null;
+let lastZoomedTimestamp = 0;
+
+function animateCameraToRect(cx, cy, segH, duration = 520) {
+  let targetH = segH + 160;
+  let targetW = targetH * (800 / 1200);
+
+  if (targetW < 350) {
+    targetW = 350;
+    targetH = targetW * (1200 / 800);
+  }
+  if (targetW > 800) {
+    targetW = 800;
+    targetH = 1200;
+  }
+
+  const targetX = cx - targetW / 2;
+  const targetY = cy - targetH / 2;
+
+  const startX = vbX.value;
+  const startY = vbY.value;
+  const startW = vbW.value;
+  const startH = vbH.value;
+
+  const startTime = performance.now();
+  if (zoomAnimFrame) cancelAnimationFrame(zoomAnimFrame);
+
+  function step(time) {
+    let progress = (time - startTime) / duration;
+    if (progress > 1) progress = 1;
+    // Smooth cubic easeInOut
+    const ease = progress < 0.5
+      ? 4 * progress * progress * progress
+      : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+
+    vbX.value = startX + (targetX - startX) * ease;
+    vbY.value = startY + (targetY - startY) * ease;
+    vbW.value = startW + (targetW - startW) * ease;
+    vbH.value = startH + (targetH - startH) * ease;
+
+    if (progress < 1) {
+      zoomAnimFrame = requestAnimationFrame(step);
+    }
+  }
+  zoomAnimFrame = requestAnimationFrame(step);
+}
+
+function focusSegment(segId) {
+  if (!segId || !layout.value) return;
+  const now = performance.now();
+  if (String(lastZoomedSegId) === String(segId) && (now - lastZoomedTimestamp) < 120) {
+    return;
+  }
+  lastZoomedSegId = String(segId);
+  lastZoomedTimestamp = now;
+
+  const l = layout.value;
+
+  // 1. Check right rail segments
+  const rIdx = l.rightSegments.findIndex(s => String(s.id) === String(segId));
+  if (rIdx !== -1) {
+    const cx = l.rightX;
+    const cy = (l.rightNodeY[rIdx] + l.rightNodeY[rIdx + 1]) / 2;
+    const segH = Math.abs(l.rightNodeY[rIdx + 1] - l.rightNodeY[rIdx]);
+    animateCameraToRect(cx, cy, segH);
+    return;
+  }
+
+  // 2. Check left rail segments
+  const lIdx = l.leftSegments.findIndex(s => String(s.id) === String(segId));
+  if (lIdx !== -1) {
+    const cx = l.leftX;
+    const cy = (l.leftNodeY[lIdx] + l.leftNodeY[lIdx + 1]) / 2;
+    const segH = Math.abs(l.leftNodeY[lIdx + 1] - l.leftNodeY[lIdx]);
+    animateCameraToRect(cx, cy, segH);
+    return;
+  }
+
+  // 3. Check branch sections
+  for (const br of (branches.value || [])) {
+    const secIdx = (br.sections || []).findIndex(sec => String(sec.id) === String(segId));
+    if (secIdx !== -1) {
+      const parentSeg = br.segIdx !== undefined ? segments.value[br.segIdx] : null;
+      const isRight = parentSeg ? (parentSeg.side !== 'left') : true;
+      const railSegIdx = parentSeg
+        ? (isRight
+            ? l.rightSegments.findIndex(s => String(s.id) === String(parentSeg.id))
+            : l.leftSegments.findIndex(s => String(s.id) === String(parentSeg.id)))
+        : 0;
+      const safeIdx = Math.max(0, railSegIdx);
+      const cx = isRight ? (l.rightX + getBranchDx(br)) : (l.leftX - getBranchDx(br));
+      const sY = getBranchSectionStartY(br, secIdx + 1, safeIdx, isRight);
+      const eY = getBranchSectionEndY(br, secIdx + 1, safeIdx, isRight);
+      const cy = (sY + eY) / 2;
+      const segH = Math.abs(eY - sY);
+      animateCameraToRect(cx, cy, segH);
+      return;
+    }
+  }
+}
+
 function zoomToSegment(side, index) {
   if (!layout.value) return;
   const l = layout.value;
@@ -1594,55 +2433,15 @@ function zoomToSegment(side, index) {
     segId = l.leftSegments[index]?.id;
   }
   
-  if (segId && router && route) {
+  if (segId) {
+    lastZoomedSegId = String(segId);
+    lastZoomedTimestamp = performance.now();
+  }
+  animateCameraToRect(cx, cy, segH);
+
+  if (props.editable && segId && router && route) {
     router.push({ query: { ...route.query, segmentId: segId } });
   }
-  
-  // Target zoom size (fit the segment height + 160px padding)
-  let targetH = segH + 160;
-  let targetW = targetH * (800 / 1200);
-  
-  // Enforce a minimum width so text/buttons don't get cut off
-  if (targetW < 350) {
-    targetW = 350;
-    targetH = targetW * (1200 / 800);
-  }
-
-  // If the segment is extremely long, don't zoom out further than default
-  if (targetW > 800) {
-    targetW = 800;
-    targetH = 1200;
-  }
-
-  const targetX = cx - targetW / 2;
-  const targetY = cy - targetH / 2;
-
-  const startX = vbX.value;
-  const startY = vbY.value;
-  const startW = vbW.value;
-  const startH = vbH.value;
-  
-  const duration = 500; // slightly longer for dramatic zoom
-  const startTime = performance.now();
-  
-  if (zoomAnimFrame) cancelAnimationFrame(zoomAnimFrame);
-  
-  function step(time) {
-    let progress = (time - startTime) / duration;
-    if (progress > 1) progress = 1;
-    // easeInOutQuad
-    const ease = progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;
-    
-    vbX.value = startX + (targetX - startX) * ease;
-    vbY.value = startY + (targetY - startY) * ease;
-    vbW.value = startW + (targetW - startW) * ease;
-    vbH.value = startH + (targetH - startH) * ease;
-    
-    if (progress < 1) {
-      zoomAnimFrame = requestAnimationFrame(step);
-    }
-  }
-  zoomAnimFrame = requestAnimationFrame(step);
 }
 
 function getTerminusIcons(node) {
@@ -1754,19 +2553,57 @@ function focusNode(nodeId) {
   zoomAnimFrame = requestAnimationFrame(step);
 }
 
-function resetView() {
+function resetView(animated = false) {
   if (zoomAnimFrame) cancelAnimationFrame(zoomAnimFrame);
   const { maxRight, maxLeft } = getMaxBranchLevel(branches.value, layout.value?.branchLevels);
   const rightExtra = Math.max(0, (maxRight - 1) * 224);
   const leftExtra = Math.max(0, (maxLeft - 1) * 224);
-  vbX.value = -350 - leftExtra;
-  vbY.value = -120;
-  vbW.value = 800 + rightExtra + leftExtra;
-  vbH.value = 1200;
+
+  const l = layout.value;
+  const topExtent = (l ? (l.topY - l.CAP_R) : -96) - 50;
+  const botExtent = (l ? (l.botY + l.CAP_R) : 620) + 50;
+  const routeHeight = Math.max(520, botExtent - topExtent);
+
+  const targetH = routeHeight + 60;
+  const targetW = Math.max(640 + rightExtra + leftExtra, Math.round(targetH * (800 / 1200)));
+  const centerX = (rightExtra - leftExtra) / 2;
+  const centerY = (topExtent + botExtent) / 2;
+  const targetX = Math.round(centerX - targetW / 2);
+  const targetY = Math.round(centerY - targetH / 2);
+
+  if (!animated) {
+    vbX.value = targetX;
+    vbY.value = targetY;
+    vbW.value = targetW;
+    vbH.value = targetH;
+    return;
+  }
+
+  const startX = vbX.value;
+  const startY = vbY.value;
+  const startW = vbW.value;
+  const startH = vbH.value;
+  const duration = 450;
+  const startTime = performance.now();
+
+  function step(time) {
+    let progress = (time - startTime) / duration;
+    if (progress > 1) progress = 1;
+    const ease = progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+    vbX.value = startX + (targetX - startX) * ease;
+    vbY.value = startY + (targetY - startY) * ease;
+    vbW.value = startW + (targetW - startW) * ease;
+    vbH.value = startH + (targetH - startH) * ease;
+    if (progress < 1) {
+      zoomAnimFrame = requestAnimationFrame(step);
+    }
+  }
+  zoomAnimFrame = requestAnimationFrame(step);
 }
 
 defineExpose({
   focusNode,
+  focusSegment,
   resetView
 });
 </script>

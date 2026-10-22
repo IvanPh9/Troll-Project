@@ -285,12 +285,23 @@ function checkStopInSeg(graph, segId, stopId) {
 }
 
 function getUniqueId(collection, prefix = '') {
-  let id = prefix ? `${prefix}_${Date.now()}` : Date.now();
-  let counter = 1;
-  while (collection && collection[id]) {
-    id = prefix ? `${prefix}_${Date.now()}_${counter++}` : (Date.now() + counter++);
+  if (prefix) {
+    let counter = 1;
+    let id = `${prefix}_${counter}`;
+    while (collection && collection[id]) {
+      counter++;
+      id = `${prefix}_${counter}`;
+    }
+    return id;
   }
-  return id;
+  const existingNums = Object.keys(collection || {})
+    .map(k => parseInt(k, 10))
+    .filter(n => !isNaN(n) && n < 100000);
+  let nextNum = existingNums.length > 0 ? Math.max(...existingNums) + 1 : 1;
+  while (collection && collection[nextNum]) {
+    nextNum++;
+  }
+  return nextNum;
 }
 
 export function addControlNodeGraph(graph, targetSegId, posMode = 'before', side = 'right', insertIdx = -1) {
@@ -849,6 +860,58 @@ export function renameStopIdGraph(graph, oldStopId, newStopId, newName, extraPro
     Object.values(graph.nodes || {}).forEach(node => {
       if (node.branchConfig && String(node.branchConfig.targetStopId) === String(oldKey)) {
         node.branchConfig.targetStopId = finalId;
+      }
+    });
+
+    return finalId;
+  }
+
+  return targetId;
+}
+
+export function renameNodeIdGraph(graph, oldNodeId, newNodeId, newName, extraProps = {}) {
+  if (!graph || !graph.nodes) return oldNodeId;
+  const oldKey = Object.keys(graph.nodes).find(k => String(k) === String(oldNodeId));
+  if (!oldKey) return oldNodeId;
+
+  const targetId = (newNodeId !== undefined && newNodeId !== null) ? newNodeId : oldKey;
+  const nodeObj = graph.nodes[oldKey];
+
+  if (newName !== undefined && newName !== null) {
+    nodeObj.name = newName;
+  }
+  if (extraProps && typeof extraProps === 'object') {
+    Object.assign(nodeObj, extraProps);
+  }
+
+  if (String(oldKey) !== String(targetId)) {
+    let finalId = targetId;
+    if (graph.nodes[finalId] && graph.nodes[finalId] !== nodeObj) {
+      let suffix = 2;
+      while (graph.nodes[`${targetId}_${suffix}`]) suffix++;
+      finalId = `${targetId}_${suffix}`;
+    }
+
+    nodeObj.id = finalId;
+    graph.nodes[finalId] = nodeObj;
+    delete graph.nodes[oldKey];
+
+    if (String(graph.startNodeId) === String(oldKey)) {
+      graph.startNodeId = finalId;
+    }
+    if (String(graph.originNodeId) === String(oldKey)) {
+      graph.originNodeId = finalId;
+    }
+
+    Object.values(graph.segments || {}).forEach(seg => {
+      if (String(seg.nextNodeId) === String(oldKey)) {
+        seg.nextNodeId = finalId;
+      }
+    });
+
+    Object.values(graph.nodes || {}).forEach(n => {
+      if (n.branchConfig && String(n.branchConfig.targetNodeId) === String(oldKey)) {
+        n.branchConfig.targetNodeId = finalId;
       }
     });
 

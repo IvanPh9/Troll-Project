@@ -21,7 +21,10 @@
       <div v-for="rs in filteredStops" :key="rs.id"
            @click="selectStop(rs)"
            class="px-3 py-2 cursor-pointer hover:bg-blue-50 text-xs border-b border-gray-50 last:border-0">
-        <div class="font-bold text-gray-800">{{ rs.name }}</div>
+        <div class="flex items-center justify-between gap-2">
+          <span class="font-bold text-gray-800">{{ rs.name }}</span>
+          <span class="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 shrink-0">#{{ rs.id }}</span>
+        </div>
         <div class="text-[9px] text-gray-400 uppercase" v-if="rs.direction">Напрям: {{ rs.direction }}</div>
       </div>
       
@@ -96,6 +99,8 @@ const filteredStops = computed(() => {
   const q = query.value.toLowerCase().trim();
   return props.stops.filter(s => 
     s.name.toLowerCase().includes(q) || 
+    String(s.id).includes(q) ||
+    `#${s.id}`.includes(q) ||
     (s.direction && s.direction.toLowerCase().includes(q))
   );
 });

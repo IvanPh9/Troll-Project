@@ -56,6 +56,54 @@ const stopRoutes = computed(() => {
   return matchedKey ? routeMap[matchedKey] : ['1', '57A', '7']
 })
 
+// Визначаємо, для яких маршрутів конкретний напрямок цієї зупинки є кінцевою
+const getTerminusRoutes = (directionCode: number, comment?: string) => {
+  const terminusMap: Record<string, Record<number, string[]>> = {
+    'Залізничний вокзал': {
+      1: ['1', '7'],
+      2: ['57A']
+    },
+    'Центральний ринок': {
+      1: ['12'],
+      2: ['2', '10A']
+    },
+    'Універмаг «Київ»': {
+      1: ['1'],
+      2: ['10A']
+    },
+    'АТ «Хімпром»': {
+      1: ['5', '8']
+    },
+    'Тролейбусне депо (КП «Електроавтотранс» )': {
+      1: ['1', '5'],
+      3: ['2', '3', '7']
+    },
+    'Сумський державний університет (СумДУ)': {
+      1: ['3'],
+      2: ['4', '9']
+    },
+    'Автовокзал': {
+      2: ['2', '12']
+    },
+    'Вулиця Героїв Крут': {
+      2: ['1', '4', '15A']
+    }
+  }
+
+  const nameKey = stopName.value.trim()
+  const matchedKey = Object.keys(terminusMap).find(k => k.toLowerCase() === nameKey.toLowerCase())
+  if (matchedKey && terminusMap[matchedKey][directionCode]) {
+    return terminusMap[matchedKey][directionCode]
+  }
+
+  // Якщо в коментарі напрямку є слово "кінцева", а точної мапи немає
+  if (comment && comment.toLowerCase().includes('кінцев')) {
+    return stopRoutes.value.length > 0 ? [stopRoutes.value[0]] : []
+  }
+
+  return []
+}
+
 // === ЛОГІКА РЕДАГУВАННЯ / ДОДАВАННЯ НАПРЯМКУ ===
 const isModalOpen = ref(false)
 const formStopId = ref<number | null>(null)
@@ -65,7 +113,13 @@ const formDirectionCode = ref(1)
 const formDirectionComment = ref('')
 const formCoordinates = ref('')
 const formPlatformsCount = ref(1)
+const formDepotTravelTimes = ref<Record<number, number | ''>>({})
 const validationErrors = ref<Record<string, string>>({})
+
+// Наявні депо в системі
+const availableDepots = computed(() => {
+  return stopsStore.stopsList.filter(s => s.type === 'depo')
+})
 
 const openAddModal = () => {
   formStopId.value = null
@@ -79,6 +133,13 @@ const openAddModal = () => {
   formDirectionComment.value = ''
   formCoordinates.value = ''
   formPlatformsCount.value = 1
+  
+  const times: Record<number, number | ''> = {}
+  availableDepots.value.forEach(depo => {
+    times[depo.stopId] = ''
+  })
+  formDepotTravelTimes.value = times
+
   validationErrors.value = {}
   isModalOpen.value = true
 }
@@ -91,6 +152,15 @@ const openEditModal = (stop: Stop) => {
   formDirectionComment.value = stop.directionComment
   formCoordinates.value = stop.getLatLngString()
   formPlatformsCount.value = stop.platformsCount
+  
+  const times: Record<number, number | ''> = {}
+  availableDepots.value.forEach(depo => {
+    times[depo.stopId] = (stop.depotTravelTimes && stop.depotTravelTimes[depo.stopId] !== undefined) 
+      ? stop.depotTravelTimes[depo.stopId] 
+      : ''
+  })
+  formDepotTravelTimes.value = times
+
   validationErrors.value = {}
   isModalOpen.value = true
 }
@@ -110,6 +180,15 @@ const saveStop = () => {
     newId = maxId + 1
   }
 
+  const cleanDepotTimes: Record<number, number> = {}
+  if (formType.value === 'normal') {
+    Object.entries(formDepotTravelTimes.value).forEach(([depoId, val]) => {
+      if (val !== '' && val !== null && !isNaN(Number(val))) {
+        cleanDepotTimes[Number(depoId)] = Number(val)
+      }
+    })
+  }
+
   const tempStop = new Stop(
     newId,
     formName.value.trim(),
@@ -118,7 +197,8 @@ const saveStop = () => {
     formDirectionComment.value.trim(),
     formCoordinates.value.trim(),
     0,
-    Number(formPlatformsCount.value)
+    Number(formPlatformsCount.value),
+    cleanDepotTimes
   )
 
   const { isValid, errors } = tempStop.validate()
@@ -329,7 +409,7 @@ watch(stops, () => {
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-5 border-b border-gray-100 pb-6 mb-6 flex-shrink-0">
         <div class="flex flex-col">
           <h2 class="text-3xl font-bold text-gray-800 leading-tight tracking-tight">{{ stopName }}</h2>
-          <div class="mt-1.5">
+          <div class="mt-1.5 flex items-center flex-wrap gap-2">
             <span class="text-[10px] text-teal-700 bg-teal-50 px-2.5 py-1 rounded-lg font-bold uppercase tracking-wider">Станція мережі</span>
           </div>
         </div>
@@ -370,21 +450,32 @@ watch(stops, () => {
                 class="text-[9px] px-2.5 py-1 rounded-lg font-bold uppercase tracking-wider border-none"
                 :class="[
                   stop.type === 'depo' ? 'bg-slate-100 text-slate-600' :
-                  stop.type === 'end' ? 'bg-red-50 text-red-600' :
                   'bg-teal-50 text-teal-600'
                 ]"
               >
-                {{ stop.type === 'depo' ? 'Депо' : stop.type === 'end' ? 'Кінцева' : 'Звичайна' }}
+                {{ stop.type === 'depo' ? 'Депо' : 'Звичайна' }}
               </span>
 
-              <span class="text-[9px] px-2.5 py-1 rounded-lg font-bold bg-amber-50 text-amber-700 border-none tracking-wider">
-                Платформ: {{ stop.platformsCount }}
+              <span v-if="getTerminusRoutes(stop.directionCode, stop.directionComment).length > 0" class="text-[9px] px-2.5 py-1 rounded-lg font-bold bg-amber-50 text-amber-800 border border-amber-200/50 tracking-wider">
+                Кінцева: {{ getTerminusRoutes(stop.directionCode, stop.directionComment).map(r => '№' + r).join(', ') }}
               </span>
             </div>
 
             <h4 class="text-base font-bold text-gray-800">
               {{ stop.directionComment || 'Без коментаря до напрямку' }}
             </h4>
+
+            <!-- Час добирання з депо (якщо задано) -->
+            <div v-if="stop.type === 'normal' && stop.depotTravelTimes && Object.keys(stop.depotTravelTimes).length > 0" class="flex items-center flex-wrap gap-2 pt-0.5">
+              <span 
+                v-for="(time, dId) in stop.depotTravelTimes" 
+                :key="dId"
+                class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200/60"
+              >
+                <SvgIcon name="depot" class="w-3 h-3 text-blue-600" />
+                <span>з {{ availableDepots.find(d => d.stopId === Number(dId))?.name || 'Депо' }}: <strong>{{ time }} хв</strong></span>
+              </span>
+            </div>
 
             <div class="flex items-center gap-2 text-[12px] text-gray-400 font-semibold pt-1">
               <svg class="w-4 h-4 text-gray-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -473,30 +564,43 @@ watch(stops, () => {
               >
             </div>
 
-            <div class="grid grid-cols-2 gap-4">
-              <div class="space-y-1.5">
-                <label class="text-sm font-semibold text-gray-700 pl-1">Тип зупинки <span class="text-red-500">*</span></label>
-                <select
-                  v-model="formType"
-                  class="w-full bg-[#F8FAFC] border border-gray-200 text-gray-800 text-sm rounded-2xl px-4 py-3 outline-none focus:bg-white focus:border-teal-500 focus:ring-4 focus:ring-teal-50 transition-all appearance-none cursor-pointer"
-                >
-                  <option value="normal">Звичайна</option>
-                  <option value="end">Кінцева</option>
-                  <option value="depo">Депо</option>
-                </select>
-              </div>
+            <div class="space-y-1.5">
+              <label class="text-sm font-semibold text-gray-700 pl-1">Тип зупинки <span class="text-red-500">*</span></label>
+              <select
+                v-model="formType"
+                class="w-full bg-[#F8FAFC] border border-gray-200 text-gray-800 text-sm rounded-2xl px-4 py-3 outline-none focus:bg-white focus:border-teal-500 focus:ring-4 focus:ring-teal-50 transition-all appearance-none cursor-pointer"
+              >
+                <option value="normal">Звичайна</option>
+                <option value="depo">Депо</option>
+              </select>
+            </div>
 
-              <div class="space-y-1.5">
-                <label class="text-sm font-semibold text-gray-700 pl-1">Кількість платформ</label>
-                <input
-                  v-model="formPlatformsCount"
-                  type="number"
-                  min="1"
-                  class="w-full bg-[#F8FAFC] border text-gray-800 text-sm rounded-2xl px-4 py-3 outline-none focus:bg-white focus:border-teal-500 focus:ring-4 focus:ring-teal-50 transition-all"
-                  :class="validationErrors.platformsCount ? 'border-red-400 focus:border-red-400 focus:ring-red-50' : 'border-gray-200'"
-                  required
+            <!-- Час добирання з наявних депо (тільки якщо тип "Звичайна") -->
+            <div v-if="formType === 'normal' && availableDepots.length > 0" class="space-y-2 p-3.5 bg-amber-50/50 rounded-2xl border border-amber-200/60">
+              <div class="flex items-center gap-1.5 text-xs font-bold text-amber-800">
+                <SvgIcon name="clock" class="w-4 h-4 text-amber-600" />
+                <span>Час добирання з депо (хв)</span>
+              </div>
+              <div class="space-y-2">
+                <div 
+                  v-for="depo in availableDepots" 
+                  :key="depo.stopId"
+                  class="flex items-center justify-between gap-3 bg-white p-2.5 rounded-xl border border-amber-100 shadow-2xs"
                 >
-                <p v-if="validationErrors.platformsCount" class="text-xs text-red-500 pl-1 mt-1">{{ validationErrors.platformsCount }}</p>
+                  <span class="text-xs font-semibold text-gray-700 truncate max-w-[200px]" :title="depo.name">
+                    {{ depo.name }}
+                  </span>
+                  <div class="flex items-center gap-1.5 flex-shrink-0">
+                    <input
+                      v-model.number="formDepotTravelTimes[depo.stopId]"
+                      type="number"
+                      min="0"
+                      placeholder="хв"
+                      class="w-16 bg-[#F8FAFC] border border-gray-200 text-gray-800 text-xs text-center font-bold rounded-lg px-2 py-1.5 outline-none focus:bg-white focus:border-teal-500 focus:ring-2 focus:ring-teal-50 transition-all"
+                    />
+                    <span class="text-[11px] text-gray-400 font-medium">хв</span>
+                  </div>
+                </div>
               </div>
             </div>
 

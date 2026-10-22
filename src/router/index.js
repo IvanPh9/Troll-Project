@@ -50,6 +50,12 @@ const router = createRouter({
                     component: () => import('@/components/routes/RouteList.vue')
                 },
                 {
+                    path: 'route/:id',
+                    name: 'route-detail',
+                    component: () => import('@/modules/route-constructor/RouteConstructor.vue'),
+                    props: true
+                },
+                {
                     path: 'route/create',
                     name: 'route-create',
                     component: () => import('@/modules/route-constructor/RouteConstructor.vue')

@@ -12,7 +12,7 @@
     <div class="grid grid-cols-1 md:grid-cols-1 gap-4 w-full max-w-3xl">
       <router-link to="/base" class="bg-slate-200 border border-slate-400 p-6 rounded-2xl shadow-[0_4px_10px_rgba(0,0,0,0.1)] text-center transition-all transform hover:scale-105 hover:shadow-md duration-300 ease-in-out mr-8 ml-8">
         <h3 class="text-2xl font-semibold">Інформаційна база системи</h3>
-        <p>Керування водіями, тролейбусами та маршрутами</p>
+        <p>Керування зупинками, маршрутами та режимами</p>
       </router-link>
 
       <div class="bg-gray-50 p-6 text-gray-300 rounded-2xl text-center mr-8 ml-8">

@@ -55,7 +55,7 @@ const isBaseRoute = computed(() => route.path === '/base' || route.path === '/ba
 const isMapRoute = computed(() => route.path.startsWith('/base/stops'))
 const isDriversPage = computed(() => route.path.startsWith('/base/drivers'))
 const isVehiclesPage = computed(() => route.path.startsWith('/base/vehicle'))
-const isConstructorRoute = computed(() => route.path.startsWith('/base/route/create'))
+const isConstructorRoute = computed(() => route.path.startsWith('/base/route/create') || route.name === 'route-detail' || (route.path.startsWith('/base/route/') && route.path !== '/base/route'))
 
 const backDestination = computed(() => {
   if (route.name === 'stop-detail' || (route.path.startsWith('/base/stops/') && !isStopsPage.value)) {
@@ -285,8 +285,8 @@ const textSpring = {
 
       <div :class="isBaseRoute || !isMapRoute ? 'inner-content relative w-full max-w-7xl' : 'absolute inset-0'">
         <router-view v-slot="{ Component, route }">
-          <transition name="page-fade" mode="out-in">
-            <component :is="Component" :key="route.path" />
+          <transition :name="isConstructorRoute ? '' : 'page-fade'" mode="out-in">
+            <component :is="Component" :key="isConstructorRoute ? 'route-constructor-persistent' : route.path" />
           </transition>
         </router-view>
       </div>

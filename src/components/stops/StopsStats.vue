@@ -16,7 +16,6 @@ const pieSlices = computed(() => {
 
   const types = [
     { label: 'Звичайні', value: 'normal', color: '#ccfbf1', stops: [] as any[] },
-    { label: 'Кінцеві', value: 'end', color: '#99f6e4', stops: [] as any[] },
     { label: 'Депо', value: 'depo', color: '#2dd4bf', stops: [] as any[] }
   ]
 
