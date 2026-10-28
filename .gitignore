@@ -37,3 +37,16 @@ __screenshots__/
 
 # Vite
 *.timestamp-*-*.mjs
+
+# Documents & Archives
+*.docx
+*.pdf
+*.rar
+*.zip
+Figma/
+figma*
+*.jsonl
+*.txt
+!README.md
+script.py
+scratch/
