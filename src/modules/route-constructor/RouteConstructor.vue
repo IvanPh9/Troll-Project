@@ -685,6 +685,7 @@ function isTargetSwitchable(targetId) {
 }
 
 /* ─────────── Developer Graph Inspector ─────────── */
+const ENABLE_GRAPH_INSPECTOR = false; // Тимчасово приховано
 const showGraphInspector = ref(false);
 const inspectorTab = ref('chain');
 
@@ -2370,7 +2371,7 @@ const allSegmentsList = computed(() => {
       <!-- ════════════════════════════════════════
            DEVELOPER GRAPH INSPECTOR PANEL (Only in Constructor Mode)
       ════════════════════════════════════════ -->
-      <Teleport to="body">
+      <Teleport to="body" v-if="ENABLE_GRAPH_INSPECTOR">
         <button v-if="!isViewMode"
                 @click="showGraphInspector = !showGraphInspector"
                 class="fixed bottom-5 left-6 z-[160] flex items-center gap-2 px-3.5 py-2 bg-gray-900/90 hover:bg-gray-900 text-white rounded-full shadow-xl border border-gray-700/60 backdrop-blur-md transition-all hover:scale-105 active:scale-95 text-xs font-mono cursor-pointer select-none">
