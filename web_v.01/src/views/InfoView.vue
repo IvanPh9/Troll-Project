@@ -1,11 +1,20 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { motion, AnimatePresence } from 'motion-v'
 import SvgIcon from '@/components/ui/SvgIcon.vue'
 import { useDriversStore } from '@/stores/drivers'
 import { useVehiclesStore } from '@/stores/vehicles'
 import { useStopsStore } from '@/stores/stops'
+import { useAuthStore } from '@/stores/auth'
+
+const router = useRouter()
+const authStore = useAuthStore()
+
+const handleLogout = async () => {
+  await authStore.logout()
+  router.push('/login')
+}
 
 const driversStore = useDriversStore()
 const vehiclesStore = useVehiclesStore()
@@ -147,6 +156,25 @@ const textSpring = {
 
 <template>
   <div class="page-container min-h-screen flex flex-col bg-gray-50/50">
+
+    <!-- Панель користувача / кнопка виходу -->
+    <div v-if="!isConstructorRoute" class="fixed top-4 right-4 z-110 flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/55 backdrop-blur-xl border border-[rgb(222,222,227)] shadow-[0_8px_8px_rgba(31,38,135,0.04),_inset_0_1px_1px_rgba(255,255,255,0.6)]">
+      <div class="w-6 h-6 rounded-full bg-teal-500/15 text-teal-700 font-semibold flex items-center justify-center text-[10px]">
+        {{ authStore.currentUser?.name?.charAt(0) || 'U' }}
+      </div>
+      <span class="hidden md:inline text-xs font-medium text-gray-700">
+        {{ authStore.currentUser?.name || authStore.currentUser?.login }}
+      </span>
+      <button
+        @click="handleLogout"
+        title="Вийти з системи"
+        class="text-gray-400 hover:text-red-600 transition p-1 hover:bg-red-50/80 rounded-full cursor-pointer flex items-center"
+      >
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+        </svg>
+      </button>
+    </div>
 
     <nav v-if="!isConstructorRoute" class="flex flex-wrap justify-center items-center gap-3 p-4 fixed inset-x-0 z-100">
 

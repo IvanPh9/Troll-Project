@@ -5,6 +5,12 @@ const router = createRouter({
     history: createWebHistory(import.meta.env.BASE_URL),
     routes: [
         {
+            path: '/login',
+            name: 'login',
+            component: () => import('../views/LoginView.vue'),
+            meta: { public: true }
+        },
+        {
             path: '/',
             name: 'welcome',
             component: WelcomeView
@@ -15,7 +21,6 @@ const router = createRouter({
             component: () => import('../views/SymbolsView.vue')
         },
         {
-
             path: '/base',
             name: 'base',
             component: () => import('../views/InfoView.vue'),
@@ -71,6 +76,31 @@ const router = createRouter({
             ]
         }
     ]
+})
+
+// Навігаційний захист маршрутів (Auth Guard)
+router.beforeEach((to, from, next) => {
+    const token = typeof localStorage !== 'undefined' ? localStorage.getItem('auth_token') : null
+    const isAuthenticated = Boolean(token)
+
+    // Якщо це публічна сторінка (наприклад, логін)
+    if (to.meta.public || to.name === 'login') {
+        if (isAuthenticated) {
+            // Вже авторизований - повертаємо на головну
+            return next('/')
+        }
+        return next()
+    }
+
+    // Для всіх інших сторінок потрібна авторизація
+    if (!isAuthenticated) {
+        return next({
+            name: 'login',
+            query: { redirect: to.fullPath }
+        })
+    }
+
+    next()
 })
 
 export default router
