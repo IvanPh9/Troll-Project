@@ -12,6 +12,10 @@ node_modules
 dist
 dist-ssr
 coverage
+# Environment & Auth secrets
+.env
+.env.*
+!.env.example
 *.local
 
 # Editor directories and files

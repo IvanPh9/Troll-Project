@@ -1,3 +1,21 @@
+# macOS system files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+**/.DS_Store
+
+# Environment & Auth secrets (JWT keys, API credentials, backend URLs)
+.env
+.env.local
+.env.*.local
+*.pem
+
+# Dependencies & Build
+node_modules/
+dist/
+
 # Loose documents, diagrams and backups in workspace root only
 /*.docx
 /*.pdf
@@ -11,3 +29,26 @@
 /web v.01/
 /Веб v0.1/
 /*Реалізація*
+
+# Файли конфігурації оточення з API-ключами та URL бекенду
+.env
+.env.*
+!.env.example
+*.local
+# Ключі шифрування та підпису JWT-токенів
+*.pem
+*.key
+*.cert
+*.crt
+*.pfx
+# Файли локальних сесій, токенів та креденшелів
+credentials.json
+tokens.json
+session.json
+auth*.json
+# Локальні файли баз даних (SQLite тощо)
+*.sqlite
+*.sqlite3
+*.db
+# Логи авторизації
+auth.log
